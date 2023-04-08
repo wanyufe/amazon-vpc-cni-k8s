@@ -18,6 +18,8 @@ import (
 	"net"
 	"os"
 
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
+
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/netconf"
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
@@ -26,7 +28,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
 )
 
@@ -48,6 +49,8 @@ import (
 // NAT address from all this logic (or patch dockershim, or (better)
 // just stop using dockerd...).  Hence ptp.
 //
+
+const ipv4MulticastRange = "224.0.0.0/4"
 
 func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Result) (*current.Interface, *current.Interface, error) {
 	// The IPAM result will be something like IP=192.168.3.5/24, GW=192.168.3.1.
@@ -190,7 +193,7 @@ func setupHostVeth(vethName string, result *current.Result) error {
 }
 
 // CmdAddEgressV4 exec necessary settings to support IPv4 egress traffic in EKS IPv6 cluster
-func CmdAddEgressV4(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult *current.Result, mtu int, chain, comment string, log logger.Logger) error {
+func CmdAddEgressV4(ipt networkutils.IptablesIface, netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult *current.Result, mtu int, chain, comment string, log logger.Logger) error {
 
 	if err := ip.EnableForward(tmpResult.IPs); err != nil {
 		return fmt.Errorf("could not enable IP forwarding: %v", err)
@@ -212,7 +215,7 @@ func CmdAddEgressV4(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult 
 		for _, ipc := range tmpResult.IPs {
 			if ipc.Address.IP.To4() != nil {
 				//log.Printf("Configuring SNAT %s -> %s", ipc.Address.IP, netConf.SnatIP)
-				if err := snat.Add(iptables.ProtocolIPv4, netConf.NodeIP, ipc.Address.IP, chain, comment, netConf.RandomizeSNAT); err != nil {
+				if err = snat.Add(ipt, ipv4MulticastRange, netConf.NodeIP, ipc.Address.IP, chain, comment, netConf.RandomizeSNAT); err != nil {
 					return err
 				}
 			}
@@ -231,7 +234,7 @@ func CmdAddEgressV4(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult 
 }
 
 // CmdDelEgressV4 exec clear the setting to support IPv4 egress traffic in EKS IPv6 cluster
-func CmdDelEgressV4(netnsPath, ifName string, nodeIP net.IP, chain, comment string, log logger.Logger) error {
+func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, nodeIP net.IP, chain, comment string, log logger.Logger) error {
 	ipnets := []*net.IPNet{}
 
 	if netnsPath != "" {
@@ -283,7 +286,7 @@ func CmdDelEgressV4(netnsPath, ifName string, nodeIP net.IP, chain, comment stri
 	if nodeIP != nil {
 		log.Debugf("DEL: SNAT setup, let's clean them up. Size of ipnets: %d", len(ipnets))
 		for _, ipn := range ipnets {
-			if err := snat.Del(iptables.ProtocolIPv4, ipn.IP, chain, comment); err != nil {
+			if err := snat.Del(ipt, ipn.IP, chain, comment); err != nil {
 				return err
 			}
 		}

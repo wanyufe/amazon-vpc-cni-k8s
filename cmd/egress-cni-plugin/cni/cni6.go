@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
+
 	"net"
 	"time"
 
@@ -30,7 +32,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/coreos/go-iptables/iptables"
 	"github.com/vishvananda/netlink"
 
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/netconf"
@@ -40,8 +41,9 @@ import (
 // Time duration CNI waits for an IPv6 address assigned to an interface
 // to move to stable state before error'ing out.
 const (
-	WaitInterval = 50 * time.Millisecond
-	DadTimeout   = 10 * time.Second
+	WaitInterval       = 50 * time.Millisecond
+	DadTimeout         = 10 * time.Second
+	ipv6MulticastRange = "ff00::/8"
 )
 
 func setupHostIPv6(log logger.Logger) error {
@@ -186,7 +188,7 @@ func disableInterfaceIPv6(netns ns.NetNS, ifName string) error {
 }
 
 // CmdAddEgressV6 exec necessary settings to support IPv6 egress traffic in EKS IPv4 cluster
-func CmdAddEgressV6(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult *current.Result, mtu int,
+func CmdAddEgressV6(ipt networkutils.IptablesIface, netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult *current.Result, mtu int,
 	argsIfName, chain, comment string, log logger.Logger) error {
 	// per best practice, a new veth pair is created between container ns and node ns
 	// this newly created veth pair is used for container's egress IPv6 traffic
@@ -244,7 +246,7 @@ func CmdAddEgressV6(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult 
 	log.Debugf("host IPv6 route set up successfully")
 
 	// set up SNAT in host for container IPv6 egress traffic
-	err = snat.Add(iptables.ProtocolIPv6, netConf.NodeIP, containerIPv6[0], chain, comment, netConf.RandomizeSNAT)
+	err = snat.Add(ipt, ipv6MulticastRange, netConf.NodeIP, containerIPv6[0], chain, comment, netConf.RandomizeSNAT)
 	if err != nil {
 		log.Errorf("setup host snat failed: %v", err)
 		return err
@@ -260,7 +262,7 @@ func CmdAddEgressV6(netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult 
 }
 
 // CmdDelEgressV6 exec clear the setting to support IPv6 egress traffic in EKS IPv4 cluster
-func CmdDelEgressV6(netnsPath string, ifName string, chain, comment string, log logger.Logger) (err error) {
+func CmdDelEgressV6(ipt networkutils.IptablesIface, netnsPath string, ifName string, chain, comment string, log logger.Logger) (err error) {
 	var contIPNets []*net.IPNet
 
 	if netnsPath != "" {
@@ -278,7 +280,7 @@ func CmdDelEgressV6(netnsPath string, ifName string, chain, comment string, log 
 	// range loop exec 0 times if confIPNets is nil
 	for _, contIPNet := range contIPNets {
 		// remove host SNAT chain/rule for container
-		err = snat.Del(iptables.ProtocolIPv6, contIPNet.IP, chain, comment)
+		err = snat.Del(ipt, contIPNet.IP, chain, comment)
 		if err != nil {
 			log.Errorf("Delete host SNAT for container IPv6 %s failed: %v.", contIPNet.IP, err)
 		}

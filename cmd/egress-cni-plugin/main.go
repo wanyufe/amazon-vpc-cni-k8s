@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/coreos/go-iptables/iptables"
+
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/netconf"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -117,12 +119,26 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 	defer netns.Close()
 
+	var ipt *iptables.IPTables
+	// IPv6 egress
 	if isIPv6Egress {
 		netConf.IfName = netconf.EgressIPv6InterfaceName
-		return cni.CmdAddEgressV6(netns, netConf, result, tmpResult, mtu, args.IfName, chain, comment, log)
+		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
+		if err != nil {
+			log.Errorf("failed to create iptables for protocol IPv6: %v", err)
+			return err
+		}
+		return cni.CmdAddEgressV6(ipt, netns, netConf, result, tmpResult, mtu, args.IfName, chain, comment, log)
+	}
+
+	// IPv4 egress
+	ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
+	if err != nil {
+		log.Errorf("failed to create iptables for protocol IPv4: %v", err)
+		return err
 	}
 	netConf.IfName = netconf.EgressIPv4InterfaceName
-	return cni.CmdAddEgressV4(netns, netConf, result, tmpResult, mtu, chain, comment, log)
+	return cni.CmdAddEgressV4(ipt, netns, netConf, result, tmpResult, mtu, chain, comment, log)
 }
 
 func cmdDel(args *skel.CmdArgs) error {
@@ -155,10 +171,25 @@ func cmdDel(args *skel.CmdArgs) error {
 	chain := utils.MustFormatChainNameWithPrefix(netConf.Name, args.ContainerID, chainPrefix)
 	comment := utils.FormatComment(netConf.Name, args.ContainerID)
 
+	var ipt *iptables.IPTables
+
+	// IPv6 egress
 	if isIPv6Egress {
 		netConf.IfName = netconf.EgressIPv6InterfaceName
-		return cni.CmdDelEgressV6(args.Netns, netConf.IfName, chain, comment, log)
+		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
+		if err != nil {
+			log.Errorf("failed to create iptables for protocol IPv6: %v", err)
+			return err
+		}
+		return cni.CmdDelEgressV6(ipt, args.Netns, netConf.IfName, chain, comment, log)
+	}
+
+	// IPv4 egress
+	ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
+	if err != nil {
+		log.Errorf("failed to create iptables for protocol IPv4: %v", err)
+		return err
 	}
 	netConf.IfName = netconf.EgressIPv4InterfaceName
-	return cni.CmdDelEgressV4(args.Netns, netConf.IfName, nodeIP, chain, comment, log)
+	return cni.CmdDelEgressV4(ipt, args.Netns, netConf.IfName, nodeIP, chain, comment, log)
 }

@@ -14,15 +14,11 @@
 package snat
 
 import (
-	"fmt"
-	"net"
-
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
 	"github.com/coreos/go-iptables/iptables"
-)
 
-const (
-	ipv6MulticastRange = "ff00::/8"
-	ipv4MulticastRange = "224.0.0.0/4"
+	//"github.com/coreos/go-iptables/iptables"
+	"net"
 )
 
 func iptRules(target, src net.IP, multicastRange, chain, comment string, useRandomFully, useHashRandom bool) [][]string {
@@ -52,12 +48,7 @@ func iptRules(target, src net.IP, multicastRange, chain, comment string, useRand
 }
 
 // Add SNATs IPv6/IPv4 connections from `src` to `target`
-func Add(protocol iptables.Protocol, target, src net.IP, chain, comment, randomizeSNAT string) error {
-	ipt, err := iptables.NewWithProtocol(protocol)
-	if err != nil {
-		return fmt.Errorf("failed to locate iptables: %v", err)
-	}
-
+func Add(ipt networkutils.IptablesIface, multicastRange string, target, src net.IP, chain, comment, randomizeSNAT string) error {
 	//Defaults to `random-fully` unless a different option is explicitly set via
 	//`AWS_VPC_K8S_CNI_RANDOMIZESNAT`. If the underlying iptables version doesn't support
 	//'random-fully`, we will fall back to `random`.
@@ -67,12 +58,7 @@ func Add(protocol iptables.Protocol, target, src net.IP, chain, comment, randomi
 	} else if randomizeSNAT == "hashrandom" || !ipt.HasRandomFully() {
 		useHashRandom, useRandomFully = true, false
 	}
-	var multicastRange string
-	if protocol == iptables.ProtocolIPv6 {
-		multicastRange = ipv6MulticastRange
-	} else {
-		multicastRange = ipv4MulticastRange
-	}
+
 	rules := iptRules(target, src, multicastRange, chain, comment, useRandomFully, useHashRandom)
 
 	chains, err := ipt.ListChains("nat")
@@ -85,18 +71,18 @@ func Add(protocol iptables.Protocol, target, src net.IP, chain, comment, randomi
 	}
 
 	for _, rule := range rules {
-		chain := rule[0]
-		if !existingChains[chain] {
-			if err = ipt.NewChain("nat", chain); err != nil {
+		_chain := rule[0]
+		if !existingChains[_chain] {
+			if err = ipt.NewChain("nat", _chain); err != nil {
 				return err
 			}
-			existingChains[chain] = true
+			existingChains[_chain] = true
 		}
 	}
 
 	for _, rule := range rules {
-		chain := rule[0]
-		if err := ipt.AppendUnique("nat", chain, rule[1:]...); err != nil {
+		_chain := rule[0]
+		if err = ipt.AppendUnique("nat", _chain, rule[1:]...); err != nil {
 			return err
 		}
 	}
@@ -105,13 +91,8 @@ func Add(protocol iptables.Protocol, target, src net.IP, chain, comment, randomi
 }
 
 // Del removes rules added by snat
-func Del(protocol iptables.Protocol, src net.IP, chain, comment string) error {
-	ipt, err := iptables.NewWithProtocol(protocol)
-	if err != nil {
-		return fmt.Errorf("failed to locate iptables: %v", err)
-	}
-
-	err = ipt.Delete("nat", "POSTROUTING", "-s", src.String(), "-j", chain, "-m", "comment", "--comment", comment)
+func Del(ipt networkutils.IptablesIface, src net.IP, chain, comment string) error {
+	err := ipt.Delete("nat", "POSTROUTING", "-s", src.String(), "-j", chain, "-m", "comment", "--comment", comment)
 	if err != nil && !isNotExist(err) {
 		return err
 	}
