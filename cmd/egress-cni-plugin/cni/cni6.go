@@ -43,8 +43,8 @@ const (
 	ipv6MulticastRange = "ff00::/8"
 )
 
+// setupHostIPv6Route adds a IPv6 route for traffic destined to container/pod from external/off-cluster
 func setupHostIPv6Route(hostInterface *current.Interface, containerIPv6 net.IP, link netlinkwrapper.NetLink) error {
-
 	hostIf, err := net.InterfaceByName(hostInterface.Name)
 	if err != nil {
 		return err
@@ -214,6 +214,7 @@ func CmdAddEgressV6(context *share.Context) (err error) { // ipt networkutils.Ip
 	context.Log.Debugf("host IPv6 route set up successfully")
 
 	// set up SNAT in host for container IPv6 egress traffic
+	// following line adds an ip6tables entries to NAT from pod IPv6 address to node IPv6 address assigned to primary ENI
 	err = snat.Add(context.Iptv6, context, ipv6MulticastRange, containerIPv6[0])
 	if err != nil {
 		context.Log.Errorf("setup host snat failed: %v", err)

@@ -93,7 +93,7 @@ const (
 	envWarmPrefixTarget      = "WARM_PREFIX_TARGET"
 	envEnBandwidthPlugin     = "ENABLE_BANDWIDTH_PLUGIN"
 	envEnIPv6                = "ENABLE_IPv6"
-	envEnEngress             = "ENABLE_ENGRESS"
+	envEnEgress              = "ENABLE_ENGRESS"
 	envRandomizeSNAT         = "AWS_VPC_K8S_CNI_RANDOMIZESNAT"
 	envEnableNftables        = "ENABLE_NFTABLES"
 )
@@ -285,7 +285,7 @@ func generateJSON(jsonFile string, outFile string, getPrimaryIP func(isIPv4 bool
 		// EKS IPv4 cluster
 		egressIPSubnet = egressIPv6Subnet
 		egressIPDst = egressIPv6Dst
-		egressEnabled = getEnv(envEnEngress, defaultEnableEngress)
+		egressEnabled = getEnv(envEnEgress, defaultEnableEngress)
 		egressPluginLogFile = getEnv(envEgressPluginLogFile, defaultEgressPluginLogFile)
 		if egressEnabled == "true" {
 			nodeIP, err = getPrimaryIP(false) // getNodePrimaryV6Address()

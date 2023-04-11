@@ -48,7 +48,7 @@ func iptRules(target, src net.IP, multicastRange, chain, comment string, useRand
 	return rules
 }
 
-// Add SNATs IPv6/IPv4 connections from `src` to `target`
+// Add NAT entries to iptables for POD egress IPv6/IPv4 traffic
 func Add(ipt networkutils.IptablesIface, context *share.Context, multicastRange string, src net.IP) error {
 	//Defaults to `random-fully` unless a different option is explicitly set via
 	//`AWS_VPC_K8S_CNI_RANDOMIZESNAT`. If the underlying iptables version doesn't support

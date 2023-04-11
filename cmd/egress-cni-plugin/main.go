@@ -194,7 +194,7 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 func _cmdDel(args *skel.CmdArgs, context *share.Context) (err error) {
 
 	// We only need this plugin to kick in if egress is enabled
-	if context.NetConf.Enabled == "false" {
+	if context.NetConf.Enabled != "true" {
 		context.Log.Debugf("egress-cni plugin is disabled")
 		return nil
 	}
