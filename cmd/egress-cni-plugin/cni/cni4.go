@@ -15,18 +15,16 @@ package cni
 
 import (
 	"fmt"
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/containernetworking/plugins/pkg/ipam"
 	"net"
 	"os"
 
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
-
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/netconf"
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 )
@@ -52,7 +50,7 @@ import (
 
 const ipv4MulticastRange = "224.0.0.0/4"
 
-func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Result) (*current.Interface, *current.Interface, error) {
+func setupContainerVeth(context *share.Context) (*current.Interface, *current.Interface, error) {
 	// The IPAM result will be something like IP=192.168.3.5/24, GW=192.168.3.1.
 	// What we want is really a point-to-point link but veth does not support IFF_POINTTOPOINT.
 	// Next best thing would be to let it ARP but set interface to 192.168.3.5/32 and
@@ -67,8 +65,8 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 	hostInterface := &current.Interface{}
 	containerInterface := &current.Interface{}
 
-	err := netns.Do(func(hostNS ns.NetNS) error {
-		hostVeth, contVeth0, err := ip.SetupVeth(ifName, mtu, hostNS)
+	err := context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
+		hostVeth, contVeth0, err := context.Veth.Setup(context.NetConf.IfName, context.Mtu, hostNS)
 		if err != nil {
 			return err
 		}
@@ -76,28 +74,28 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 		hostInterface.Mac = hostVeth.HardwareAddr.String()
 		containerInterface.Name = contVeth0.Name
 		containerInterface.Mac = contVeth0.HardwareAddr.String()
-		containerInterface.Sandbox = netns.Path()
+		containerInterface.Sandbox = context.NsPath
 
-		for _, ipc := range pr.IPs {
+		for _, ipc := range context.TmpResult.IPs {
 			// All addresses apply to the container veth interface
 			ipc.Interface = current.Int(1)
 		}
 
-		pr.Interfaces = []*current.Interface{hostInterface, containerInterface}
+		context.TmpResult.Interfaces = []*current.Interface{hostInterface, containerInterface}
 
-		if err = ipam.ConfigureIface(ifName, pr); err != nil {
+		if err = ipam.ConfigureIface(context.NetConf.IfName, context.TmpResult); err != nil {
 			return err
 		}
 
-		contVeth, err := net.InterfaceByName(ifName)
+		contVeth, err := context.Link.LinkByName(context.NetConf.IfName)
 		if err != nil {
-			return fmt.Errorf("failed to look up %q: %v", ifName, err)
+			return fmt.Errorf("failed to look up %q: %v", context.NetConf.IfName, err)
 		}
 
-		for _, ipc := range pr.IPs {
+		for _, ipc := range context.TmpResult.IPs {
 			// Delete the route that was automatically added
 			route := netlink.Route{
-				LinkIndex: contVeth.Index,
+				LinkIndex: contVeth.Attrs().Index,
 				Dst: &net.IPNet{
 					IP:   ipc.Address.IP.Mask(ipc.Address.Mask),
 					Mask: ipc.Address.Mask,
@@ -105,7 +103,7 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 				Scope: netlink.SCOPE_NOWHERE,
 			}
 
-			if err := netlink.RouteDel(&route); err != nil {
+			if err := context.Link.RouteDel(&route); err != nil {
 				return fmt.Errorf("failed to delete route %v: %v", route, err)
 			}
 
@@ -116,7 +114,7 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 
 			for _, r := range []netlink.Route{
 				{
-					LinkIndex: contVeth.Index,
+					LinkIndex: contVeth.Attrs().Index,
 					Dst: &net.IPNet{
 						IP:   ipc.Gateway,
 						Mask: net.CIDRMask(addrBits, addrBits),
@@ -125,7 +123,7 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 					Src:   ipc.Address.IP,
 				},
 				{
-					LinkIndex: contVeth.Index,
+					LinkIndex: contVeth.Attrs().Index,
 					Dst: &net.IPNet{
 						IP:   ipc.Address.IP.Mask(ipc.Address.Mask),
 						Mask: ipc.Address.Mask,
@@ -135,7 +133,7 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 					Src:   ipc.Address.IP,
 				},
 			} {
-				if err := netlink.RouteAdd(&r); err != nil {
+				if err := context.Link.RouteAdd(&r); err != nil {
 					return fmt.Errorf("failed to add route %v: %v", r, err)
 				}
 			}
@@ -148,14 +146,14 @@ func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Resu
 	return hostInterface, containerInterface, nil
 }
 
-func setupHostVeth(vethName string, result *current.Result) error {
+func setupHostVeth(vethName string, context *share.Context) error {
 	// hostVeth moved namespaces and may have a new ifindex
-	veth, err := netlink.LinkByName(vethName)
+	veth, err := context.Link.LinkByName(vethName)
 	if err != nil {
 		return fmt.Errorf("failed to lookup %q: %v", vethName, err)
 	}
 
-	for _, ipc := range result.IPs {
+	for _, ipc := range context.Result.IPs {
 		maskLen := 128
 		if ipc.Address.IP.To4() != nil {
 			maskLen = 32
@@ -171,7 +169,7 @@ func setupHostVeth(vethName string, result *current.Result) error {
 			IPNet: ipn,
 			Scope: int(netlink.SCOPE_LINK), // <- ptp uses SCOPE_UNIVERSE here
 		}
-		if err = netlink.AddrAdd(veth, addr); err != nil {
+		if err = context.Link.AddrAdd(veth, addr); err != nil {
 			return fmt.Errorf("failed to add IP addr (%#v) to veth: %v", ipn, err)
 		}
 
@@ -179,7 +177,7 @@ func setupHostVeth(vethName string, result *current.Result) error {
 			IP:   ipc.Address.IP,
 			Mask: net.CIDRMask(maskLen, maskLen),
 		}
-		err := netlink.RouteAdd(&netlink.Route{
+		err := context.Link.RouteAdd(&netlink.Route{
 			LinkIndex: veth.Attrs().Index,
 			Scope:     netlink.SCOPE_LINK, // <- ptp uses SCOPE_HOST here
 			Dst:       ipn,
@@ -192,30 +190,67 @@ func setupHostVeth(vethName string, result *current.Result) error {
 	return nil
 }
 
-// CmdAddEgressV4 exec necessary settings to support IPv4 egress traffic in EKS IPv6 cluster
-func CmdAddEgressV4(ipt networkutils.IptablesIface, netns ns.NetNS, netConf *netconf.NetConf, result, tmpResult *current.Result, mtu int, chain, comment string, log logger.Logger) error {
+func enableIpForwarding(procsys procsyswrapper.ProcSys, ips []*current.IPConfig) error {
+	v4 := false
+	v6 := false
 
-	if err := ip.EnableForward(tmpResult.IPs); err != nil {
+	keyV4 := "/proc/sys/net/ipv4/ip_forward"
+	keyV6 := "/proc/sys/net/ipv6/conf/all/forwarding"
+
+	for _, ip := range ips {
+		if ip.Version == "4" && !v4 {
+			valueV4, err := procsys.Get(keyV4)
+			if err != nil {
+				return err
+			}
+			if valueV4 != "1" {
+				err = procsys.Set(keyV4, "1")
+				if err != nil {
+					return err
+				}
+			}
+			v4 = true
+		} else if ip.Version == "6" && !v6 {
+			valueV6, err := procsys.Get(keyV6)
+			if err != nil {
+				return err
+			}
+			if valueV6 != "1" {
+				err = procsys.Set(keyV6, "1")
+				if err != nil {
+					return err
+				}
+			}
+			v6 = true
+		}
+	}
+	return nil
+}
+
+// CmdAddEgressV4 exec necessary settings to support IPv4 egress traffic in EKS IPv6 cluster
+func CmdAddEgressV4(context *share.Context) error {
+
+	if err := enableIpForwarding(context.Procsys, context.TmpResult.IPs); err != nil {
 		return fmt.Errorf("could not enable IP forwarding: %v", err)
 	}
 
 	// NB: This uses netConf.IfName NOT args.IfName.
-	hostInterface, _, err := setupContainerVeth(netns, netConf.IfName, mtu, tmpResult)
+	hostInterface, _, err := setupContainerVeth(context) //veth, netns, nsPath, ipam, link, netConf.IfName, mtu, tmpResult)
 	if err != nil {
-		log.Debugf("failed to setup container Veth: %v", err)
+		context.Log.Debugf("failed to setup container Veth: %v", err)
 		return err
 	}
 
-	if err = setupHostVeth(hostInterface.Name, tmpResult); err != nil {
+	if err = setupHostVeth(hostInterface.Name, context); err != nil {
 		return err
 	}
 
-	log.Debugf("Node IP: %s", netConf.NodeIP)
-	if netConf.NodeIP != nil {
-		for _, ipc := range tmpResult.IPs {
+	context.Log.Debugf("Node IP: %s", context.NetConf.NodeIP)
+	if context.NetConf.NodeIP != nil {
+		for _, ipc := range context.TmpResult.IPs {
 			if ipc.Address.IP.To4() != nil {
 				//log.Printf("Configuring SNAT %s -> %s", ipc.Address.IP, netConf.SnatIP)
-				if err = snat.Add(ipt, ipv4MulticastRange, netConf.NodeIP, ipc.Address.IP, chain, comment, netConf.RandomizeSNAT); err != nil {
+				if err = snat.Add(context.Iptv4, context, ipv4MulticastRange, ipc.Address.IP); err != nil {
 					return err
 				}
 			}
@@ -223,22 +258,23 @@ func CmdAddEgressV4(ipt networkutils.IptablesIface, netns ns.NetNS, netConf *net
 	}
 
 	// Copy interfaces over to result, but not IPs.
-	result.Interfaces = append(result.Interfaces, tmpResult.Interfaces...)
+	context.Result.Interfaces = append(context.Result.Interfaces, context.TmpResult.Interfaces...)
 	// Note: Useful for debug, will do away with the below log prior to release
-	for _, v := range result.IPs {
-		log.Debugf("Interface Name: %v; IP: %s", v.Interface, v.Address)
+	for _, v := range context.Result.IPs {
+		context.Log.Debugf("Interface Name: %v; IP: %s", v.Interface, v.Address)
 	}
 
 	// Pass through the previous result
-	return types.PrintResult(result, netConf.CNIVersion)
+	return types.PrintResult(context.Result, context.NetConf.CNIVersion)
 }
 
 // CmdDelEgressV4 exec clear the setting to support IPv4 egress traffic in EKS IPv6 cluster
-func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, nodeIP net.IP, chain, comment string, log logger.Logger) error {
+// func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, nodeIP net.IP, chain, comment string, log logger.Logger) error {
+func CmdDelEgressV4(context *share.Context) error {
 	ipnets := []*net.IPNet{}
 
-	if netnsPath != "" {
-		err := ns.WithNetNSPath(netnsPath, func(hostNS ns.NetNS) error {
+	if context.NsPath != "" {
+		err := ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
 			var err error
 
 			// DelLinkByNameAddr function deletes an interface and returns IPs assigned to it but it
@@ -246,7 +282,7 @@ func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, no
 			// our scenario as we use 169.254.0.0/16 range for v4 IPs.
 
 			//Get the interface we want to delete
-			iface, err := netlink.LinkByName(ifName)
+			iface, err := context.Link.LinkByName(context.NetConf.IfName)
 
 			if err != nil {
 				if _, ok := err.(netlink.LinkNotFoundError); ok {
@@ -256,14 +292,14 @@ func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, no
 			}
 
 			//Retrieve IP addresses assigned to the interface
-			addrs, err := netlink.AddrList(iface, netlink.FAMILY_V4)
+			addrs, err := context.Link.AddrList(iface, netlink.FAMILY_V4)
 			if err != nil {
-				return fmt.Errorf("failed to get IP addresses for %q: %v", ifName, err)
+				return fmt.Errorf("failed to get IP addresses for %q: %v", context.NetConf.IfName, err)
 			}
 
 			//Delete the interface/link.
-			if err = netlink.LinkDel(iface); err != nil {
-				return fmt.Errorf("failed to delete %q: %v", ifName, err)
+			if err = context.Link.LinkDel(iface); err != nil {
+				return fmt.Errorf("failed to delete %q: %v", context.NetConf.IfName, err)
 			}
 
 			for _, addr := range addrs {
@@ -271,22 +307,22 @@ func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, no
 			}
 
 			if err != nil && err == ip.ErrLinkNotFound {
-				log.Debugf("DEL: Link Not Found, returning", err)
+				context.Log.Debugf("DEL: Link Not Found, returning", err)
 				return nil
 			}
 			return err
 		})
 
-		//DEL should be best effort. We should clean up as much as we can and avoid returning error
+		//DEL should be best-effort. We should clean up as much as we can and avoid returning error
 		if err != nil {
-			log.Debugf("DEL: Executing in container ns errored out, returning", err)
+			context.Log.Debugf("DEL: Executing in container ns errored out, returning", err)
 		}
 	}
 
-	if nodeIP != nil {
-		log.Debugf("DEL: SNAT setup, let's clean them up. Size of ipnets: %d", len(ipnets))
+	if context.NetConf.NodeIP != nil {
+		context.Log.Debugf("DEL: SNAT setup, let's clean them up. Size of ipnets: %d", len(ipnets))
 		for _, ipn := range ipnets {
-			if err := snat.Del(ipt, ipn.IP, chain, comment); err != nil {
+			if err := snat.Del(context.Iptv4, ipn.IP, context.Chain, context.Comment); err != nil {
 				return err
 			}
 		}

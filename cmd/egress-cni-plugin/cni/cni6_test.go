@@ -11,8 +11,4 @@
 // express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package networkutils
-
-//go:generate go run github.com/golang/mock/mockgen -destination mocks/network_mocks.go -copyright_file ../../scripts/copyright.txt . NetworkAPIs
-
-//go:generate go run github.com/golang/mock/mockgen -destination mocks/iptables_mocks.go -copyright_file ../../scripts/copyright.txt . IptablesIface
+package cni

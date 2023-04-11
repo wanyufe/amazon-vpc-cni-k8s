@@ -14,6 +14,7 @@
 package snat
 
 import (
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
 	"github.com/coreos/go-iptables/iptables"
 
@@ -48,18 +49,18 @@ func iptRules(target, src net.IP, multicastRange, chain, comment string, useRand
 }
 
 // Add SNATs IPv6/IPv4 connections from `src` to `target`
-func Add(ipt networkutils.IptablesIface, multicastRange string, target, src net.IP, chain, comment, randomizeSNAT string) error {
+func Add(ipt networkutils.IptablesIface, context *share.Context, multicastRange string, src net.IP) error {
 	//Defaults to `random-fully` unless a different option is explicitly set via
 	//`AWS_VPC_K8S_CNI_RANDOMIZESNAT`. If the underlying iptables version doesn't support
 	//'random-fully`, we will fall back to `random`.
 	useRandomFully, useHashRandom := true, false
-	if randomizeSNAT == "none" {
+	if context.NetConf.RandomizeSNAT == "none" {
 		useRandomFully = false
-	} else if randomizeSNAT == "hashrandom" || !ipt.HasRandomFully() {
+	} else if context.NetConf.RandomizeSNAT == "hashrandom" || !ipt.HasRandomFully() {
 		useHashRandom, useRandomFully = true, false
 	}
 
-	rules := iptRules(target, src, multicastRange, chain, comment, useRandomFully, useHashRandom)
+	rules := iptRules(context.NetConf.NodeIP, src, multicastRange, context.Chain, context.Comment, useRandomFully, useHashRandom)
 
 	chains, err := ipt.ListChains("nat")
 	if err != nil {

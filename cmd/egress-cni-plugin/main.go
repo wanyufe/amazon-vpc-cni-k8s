@@ -15,19 +15,25 @@ package main
 
 import (
 	"fmt"
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
 	"runtime"
 	"strconv"
+
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
+
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 
 	"github.com/coreos/go-iptables/iptables"
 
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/netconf"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ipam"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/utils"
 )
 
@@ -45,36 +51,60 @@ func main() {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	netConf, log, err := netconf.LoadConf(args.StdinData)
-	if err != nil {
-		log.Debugf("Received Add request: Failed to parse config: %v", err)
-		return fmt.Errorf("failed to parse config: %v", err)
+	execContext := &share.Context{
+		Procsys:    procsyswrapper.NewProcSys(),
+		Ns:         nswrapper.NewNS(),
+		NsPath:     args.Netns,
+		ArgsIfName: args.IfName,
+		Ipam:       ipamwrapper.NewIpam(),
+		Link:       netlinkwrapper.NewNetLink(),
+		Veth:       vethwrapper.NewSetupVeth(),
 	}
 
-	if netConf.PrevResult == nil {
-		log.Debugf("must be called as a chained plugin")
-		return fmt.Errorf("must be called as a chained plugin")
-	}
-
-	result, err := current.GetResult(netConf.PrevResult)
+	iptv4, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
 	if err != nil {
-		log.Errorf("failed to get PrevResult: %v", err)
+		return err
+	}
+	iptv6, err := iptables.NewWithProtocol(iptables.ProtocolIPv6)
+	if err != nil {
 		return err
 	}
 
-	log.Debugf("Received an ADD request for: conf=%v; Plugin enabled=%s", netConf, netConf.Enabled)
+	execContext.Iptv4 = iptv4
+	execContext.Iptv6 = iptv6
+
+	execContext.NetConf, execContext.Log, err = share.LoadConf(args.StdinData)
+	if err != nil {
+		return fmt.Errorf("failed to parse config: %v", err)
+	}
+	return _cmdAdd(args, execContext)
+}
+
+func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
+	if context.NetConf.PrevResult == nil {
+		context.Log.Debugf("must be called as a chained plugin")
+		return fmt.Errorf("must be called as a chained plugin")
+	}
+
+	context.Result, err = current.GetResult(context.NetConf.PrevResult)
+	if err != nil {
+		context.Log.Errorf("failed to get PrevResult: %v", err)
+		return err
+	}
+
+	context.Log.Debugf("Received an ADD request for: conf=%v; Plugin enabled=%s", context.NetConf, context.NetConf.Enabled)
 	// We will not be vending out this as a separate plugin by itself and it is only intended to be used as a
 	// chained plugin to VPC CNI. We only need this plugin to kick in if egress is enabled in VPC CNI. So, the
 	// value of an env variable in VPC CNI determines whether this plugin should be enabled and this is an attempt to
 	// pass through the variable configured in VPC CNI.
-	if netConf.Enabled == "false" {
-		return types.PrintResult(result, netConf.CNIVersion)
+	if context.NetConf.Enabled == "false" {
+		return types.PrintResult(context.Result, context.NetConf.CNIVersion)
 	}
 
-	isIPv6Egress := netConf.NodeIP.To4() == nil
+	isIPv6Egress := context.NetConf.NodeIP.To4() == nil
 	var chainPrefix string
 	if isIPv6Egress {
-		if netConf.NodeIP == nil || !netConf.NodeIP.IsGlobalUnicast() {
+		if context.NetConf.NodeIP == nil || !context.NetConf.NodeIP.IsGlobalUnicast() {
 			return fmt.Errorf("global unicast IPv6 not found in host primary interface which is mandatory to support IPv6 egress")
 		}
 		chainPrefix = "E6-"
@@ -82,10 +112,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 		chainPrefix = "E4-"
 	}
 
-	chain := utils.MustFormatChainNameWithPrefix(netConf.Name, args.ContainerID, chainPrefix)
-	comment := utils.FormatComment(netConf.Name, args.ContainerID)
+	context.Chain = utils.MustFormatChainNameWithPrefix(context.NetConf.Name, args.ContainerID, chainPrefix)
+	context.Comment = utils.FormatComment(context.NetConf.Name, args.ContainerID)
 
-	ipamResultI, err := ipam.ExecAdd(netConf.IPAM.Type, args.StdinData)
+	ipamResultI, err := ipam.ExecAdd(context.NetConf.IPAM.Type, args.StdinData)
 	if err != nil {
 		return fmt.Errorf("running IPAM plugin failed: %v", err)
 	}
@@ -93,103 +123,104 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// Invoke ipam del if err to avoid ip leak
 	defer func() {
 		if err != nil {
-			ipam.ExecDel(netConf.IPAM.Type, args.StdinData)
+			context.Ipam.ExecDel(context.NetConf.IPAM.Type, args.StdinData)
 		}
 	}()
 
-	tmpResult, err := current.NewResultFromResult(ipamResultI)
+	context.TmpResult, err = current.NewResultFromResult(ipamResultI)
 	if err != nil {
 		return err
 	}
 
-	if len(tmpResult.IPs) == 0 {
+	if len(context.TmpResult.IPs) == 0 {
 		return fmt.Errorf("IPAM plugin returned zero IPs")
 	}
 
+	// save container ns path into context
+	context.NsPath = args.Netns
+	// save args.IfName into context
+	context.ArgsIfName = args.IfName
+
 	// Convert MTU from string to int
-	mtu, err := strconv.Atoi(netConf.MTU)
+	context.Mtu, err = strconv.Atoi(context.NetConf.MTU)
 	if err != nil {
-		log.Debugf("failed to parse MTU: %s, err: %v", netConf.MTU, err)
+		context.Log.Errorf("failed to parse MTU: %s, err: %v", context.NetConf.MTU, err)
 		return err
 	}
 
-	netns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer netns.Close()
-
-	var ipt *iptables.IPTables
 	// IPv6 egress
 	if isIPv6Egress {
-		netConf.IfName = netconf.EgressIPv6InterfaceName
-		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
-		if err != nil {
-			log.Errorf("failed to create iptables for protocol IPv6: %v", err)
-			return err
-		}
-		return cni.CmdAddEgressV6(ipt, netns, netConf, result, tmpResult, mtu, args.IfName, chain, comment, log)
+		context.NetConf.IfName = share.EgressIPv6InterfaceName
+		return cni.CmdAddEgressV6(context)
 	}
 
 	// IPv4 egress
-	ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
-	if err != nil {
-		log.Errorf("failed to create iptables for protocol IPv4: %v", err)
-		return err
-	}
-	netConf.IfName = netconf.EgressIPv4InterfaceName
-	return cni.CmdAddEgressV4(ipt, netns, netConf, result, tmpResult, mtu, chain, comment, log)
+	context.NetConf.IfName = share.EgressIPv4InterfaceName
+
+	return cni.CmdAddEgressV4(context)
 }
 
-func cmdDel(args *skel.CmdArgs) error {
-	netConf, log, err := netconf.LoadConf(args.StdinData)
+func cmdDel(args *skel.CmdArgs) (err error) {
+	context := &share.Context{
+		Procsys:    procsyswrapper.NewProcSys(),
+		Ns:         nswrapper.NewNS(),
+		NsPath:     args.Netns,
+		ArgsIfName: args.IfName,
+		Ipam:       ipamwrapper.NewIpam(),
+		Link:       netlinkwrapper.NewNetLink(),
+		Veth:       vethwrapper.NewSetupVeth(),
+	}
+
+	iptv4, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
 	if err != nil {
-		log.Debugf("Received Del request: Failed to parse config: %v", err)
+		return err
+	}
+	iptv6, err := iptables.NewWithProtocol(iptables.ProtocolIPv6)
+	if err != nil {
+		return err
+	}
+
+	context.Iptv4 = iptv4
+	context.Iptv6 = iptv6
+
+	context.NetConf, context.Log, err = share.LoadConf(args.StdinData)
+	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
 	}
 
+	return _cmdDel(args, context)
+}
+
+func _cmdDel(args *skel.CmdArgs, context *share.Context) (err error) {
+
 	// We only need this plugin to kick in if egress is enabled
-	if netConf.Enabled == "false" {
-		log.Debugf("egress-cni plugin is disabled")
+	if context.NetConf.Enabled == "false" {
+		context.Log.Debugf("egress-cni plugin is disabled")
 		return nil
 	}
+	context.Log.Debugf("Received Del Request: nsPath: %s conf=%v", context.NsPath, context.NetConf)
 
-	log.Debugf("Received Del Request: netnsPath: %s conf=%v", args.Netns, netConf)
-	if err := ipam.ExecDel(netConf.IPAM.Type, args.StdinData); err != nil {
-		log.Debugf("running IPAM plugin failed: %v", err)
+	if err = context.Ipam.ExecDel(context.NetConf.IPAM.Type, args.StdinData); err != nil {
+		context.Log.Debugf("running IPAM plugin failed: %v", err)
 		return fmt.Errorf("running IPAM plugin failed: %v", err)
 	}
 
-	nodeIP := netConf.NodeIP
-	isIPv6Egress := nodeIP.To4() == nil
+	isIPv6Egress := context.NetConf.NodeIP.To4() == nil
 	var chainPrefix string
 	if isIPv6Egress {
 		chainPrefix = "E6-"
 	} else {
 		chainPrefix = "E4-"
 	}
-	chain := utils.MustFormatChainNameWithPrefix(netConf.Name, args.ContainerID, chainPrefix)
-	comment := utils.FormatComment(netConf.Name, args.ContainerID)
-
-	var ipt *iptables.IPTables
+	context.Chain = utils.MustFormatChainNameWithPrefix(context.NetConf.Name, args.ContainerID, chainPrefix)
+	context.Comment = utils.FormatComment(context.NetConf.Name, args.ContainerID)
 
 	// IPv6 egress
 	if isIPv6Egress {
-		netConf.IfName = netconf.EgressIPv6InterfaceName
-		ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv6)
-		if err != nil {
-			log.Errorf("failed to create iptables for protocol IPv6: %v", err)
-			return err
-		}
-		return cni.CmdDelEgressV6(ipt, args.Netns, netConf.IfName, chain, comment, log)
+		context.NetConf.IfName = share.EgressIPv6InterfaceName
+		return cni.CmdDelEgressV6(context)
 	}
-
 	// IPv4 egress
-	ipt, err = iptables.NewWithProtocol(iptables.ProtocolIPv4)
-	if err != nil {
-		log.Errorf("failed to create iptables for protocol IPv4: %v", err)
-		return err
-	}
-	netConf.IfName = netconf.EgressIPv4InterfaceName
-	return cni.CmdDelEgressV4(ipt, args.Netns, netConf.IfName, nodeIP, chain, comment, log)
+	context.NetConf.IfName = share.EgressIPv4InterfaceName
+	return cni.CmdDelEgressV4(context)
 }
