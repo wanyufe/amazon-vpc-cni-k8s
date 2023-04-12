@@ -97,3 +97,15 @@
 {"level":"info","ts":"2023-04-11T17:33:26.212Z","caller":"cni/cni4_test.go:56","msg":"Constructed new logger instance"}
 {"level":"debug","ts":"2023-04-11T17:33:26.213Z","caller":"cni/cni4_test.go:222","msg":"Node IP: 192.168.0.23"}
 {"level":"debug","ts":"2023-04-11T17:33:26.213Z","caller":"cni/cni4_test.go:222","msg":"Interface Name: 0xc0000b3420; IP: {192.168.1.100 ffffff00}"}
+{"level":"info","ts":"2023-04-12T00:05:08.177Z","caller":"cni/cni4_test.go:63","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-12T00:05:08.178Z","caller":"cni/cni4_test.go:215","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-12T00:05:08.178Z","caller":"cni/cni4_test.go:215","msg":"Interface Name: 0xc000021540; IP: {192.168.1.100 ffffff00}"}
+{"level":"info","ts":"2023-04-12T02:00:38.168Z","caller":"cni/cni4_test.go:96","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-12T02:00:38.169Z","caller":"cni/cni4_test.go:68","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-12T02:00:38.169Z","caller":"cni/cni4_test.go:68","msg":"Interface Name: 0xc0000290a0; IP: {192.168.1.100 ffffff00}"}
+{"level":"info","ts":"2023-04-12T02:03:17.572Z","caller":"cni/cni4_test.go:96","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-12T02:03:17.572Z","caller":"cni/cni4_test.go:68","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-12T02:03:17.573Z","caller":"cni/cni4_test.go:68","msg":"Interface Name: 0xc00038a160; IP: {192.168.1.100 ffffff00}"}
+{"level":"info","ts":"2023-04-12T02:08:10.817Z","caller":"cni/cni4_test.go:96","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-12T02:08:10.817Z","caller":"cni/cni4_test.go:68","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-12T02:08:10.817Z","caller":"cni/cni4_test.go:68","msg":"Interface Name: 0xc00011e170; IP: {192.168.1.100 ffffff00}"}

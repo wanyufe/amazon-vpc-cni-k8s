@@ -14,11 +14,11 @@
 package snat
 
 import (
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
 	"github.com/coreos/go-iptables/iptables"
 
-	//"github.com/coreos/go-iptables/iptables"
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
+
 	"net"
 )
 

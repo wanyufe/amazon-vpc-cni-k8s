@@ -15,18 +15,19 @@ package cni
 
 import (
 	"fmt"
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
-	"github.com/containernetworking/plugins/pkg/ipam"
 	"net"
 	"os"
 
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 )
 
 // The bulk of this file is mostly based on standard ptp CNI plugin.
@@ -48,7 +49,11 @@ import (
 // just stop using dockerd...).  Hence ptp.
 //
 
-const ipv4MulticastRange = "224.0.0.0/4"
+const (
+	ipv4MulticastRange = "224.0.0.0/4"
+	ipv4ForwardKey     = "net/ipv4/ip_forward"
+	ipv6ForwardKey     = "net/ipv6/conf/all/forwarding"
+)
 
 func setupContainerVeth(context *share.Context) (*current.Interface, *current.Interface, error) {
 	// The IPAM result will be something like IP=192.168.3.5/24, GW=192.168.3.1.
@@ -83,7 +88,7 @@ func setupContainerVeth(context *share.Context) (*current.Interface, *current.In
 
 		context.TmpResult.Interfaces = []*current.Interface{hostInterface, containerInterface}
 
-		if err = ipam.ConfigureIface(context.NetConf.IfName, context.TmpResult); err != nil {
+		if err = context.Ipam.ConfigureIface(context.NetConf.IfName, context.TmpResult); err != nil {
 			return err
 		}
 
@@ -153,7 +158,7 @@ func setupHostVeth(vethName string, context *share.Context) error {
 		return fmt.Errorf("failed to lookup %q: %v", vethName, err)
 	}
 
-	for _, ipc := range context.Result.IPs {
+	for _, ipc := range context.TmpResult.IPs {
 		maskLen := 128
 		if ipc.Address.IP.To4() != nil {
 			maskLen = 32
@@ -190,33 +195,30 @@ func setupHostVeth(vethName string, context *share.Context) error {
 	return nil
 }
 
-func enableIpForwarding(procsys procsyswrapper.ProcSys, ips []*current.IPConfig) error {
+func enableIpForwarding(procSys procsyswrapper.ProcSys, ips []*current.IPConfig) error {
 	v4 := false
 	v6 := false
 
-	keyV4 := "/proc/sys/net/ipv4/ip_forward"
-	keyV6 := "/proc/sys/net/ipv6/conf/all/forwarding"
-
 	for _, ip := range ips {
 		if ip.Version == "4" && !v4 {
-			valueV4, err := procsys.Get(keyV4)
+			valueV4, err := procSys.Get(ipv4ForwardKey)
 			if err != nil {
 				return err
 			}
 			if valueV4 != "1" {
-				err = procsys.Set(keyV4, "1")
+				err = procSys.Set(ipv4ForwardKey, "1")
 				if err != nil {
 					return err
 				}
 			}
 			v4 = true
 		} else if ip.Version == "6" && !v6 {
-			valueV6, err := procsys.Get(keyV6)
+			valueV6, err := procSys.Get(ipv6ForwardKey)
 			if err != nil {
 				return err
 			}
 			if valueV6 != "1" {
-				err = procsys.Set(keyV6, "1")
+				err = procSys.Set(ipv6ForwardKey, "1")
 				if err != nil {
 					return err
 				}
@@ -235,7 +237,7 @@ func CmdAddEgressV4(context *share.Context) error {
 	}
 
 	// NB: This uses netConf.IfName NOT args.IfName.
-	hostInterface, _, err := setupContainerVeth(context) //veth, netns, nsPath, ipam, link, netConf.IfName, mtu, tmpResult)
+	hostInterface, _, err := setupContainerVeth(context)
 	if err != nil {
 		context.Log.Debugf("failed to setup container Veth: %v", err)
 		return err
@@ -271,10 +273,10 @@ func CmdAddEgressV4(context *share.Context) error {
 // CmdDelEgressV4 exec clear the setting to support IPv4 egress traffic in EKS IPv6 cluster
 // func CmdDelEgressV4(ipt networkutils.IptablesIface, netnsPath, ifName string, nodeIP net.IP, chain, comment string, log logger.Logger) error {
 func CmdDelEgressV4(context *share.Context) error {
-	ipnets := []*net.IPNet{}
+	var ipnets []*net.IPNet
 
 	if context.NsPath != "" {
-		err := ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
+		err := context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
 			var err error
 
 			// DelLinkByNameAddr function deletes an interface and returns IPs assigned to it but it

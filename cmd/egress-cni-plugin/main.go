@@ -15,26 +15,26 @@ package main
 
 import (
 	"fmt"
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
 	"runtime"
 	"strconv"
 
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
+
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
-
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 
 	"github.com/coreos/go-iptables/iptables"
 
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	cniversion "github.com/containernetworking/cni/pkg/version"
-	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/utils"
+
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
 )
 
 var version string
@@ -77,23 +77,28 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
 	}
+	if execContext.NetConf.PrevResult == nil {
+		execContext.Log.Debugf("must be called as a chained plugin")
+		return fmt.Errorf("must be called as a chained plugin")
+	}
+
+	execContext.Result, err = current.GetResult(execContext.NetConf.PrevResult)
+	if err != nil {
+		execContext.Log.Errorf("failed to get PrevResult: %v", err)
+		return err
+	}
+	// Convert MTU from string to int
+	execContext.Mtu, err = strconv.Atoi(execContext.NetConf.MTU)
+	if err != nil {
+		execContext.Log.Errorf("failed to parse MTU: %s, err: %v", execContext.NetConf.MTU, err)
+		return err
+	}
 	return _cmdAdd(args, execContext)
 }
 
 func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
-	if context.NetConf.PrevResult == nil {
-		context.Log.Debugf("must be called as a chained plugin")
-		return fmt.Errorf("must be called as a chained plugin")
-	}
-
-	context.Result, err = current.GetResult(context.NetConf.PrevResult)
-	if err != nil {
-		context.Log.Errorf("failed to get PrevResult: %v", err)
-		return err
-	}
-
 	context.Log.Debugf("Received an ADD request for: conf=%v; Plugin enabled=%s", context.NetConf, context.NetConf.Enabled)
-	// We will not be vending out this as a separate plugin by itself and it is only intended to be used as a
+	// We will not be vending out this as a separate plugin by itself, and it is only intended to be used as a
 	// chained plugin to VPC CNI. We only need this plugin to kick in if egress is enabled in VPC CNI. So, the
 	// value of an env variable in VPC CNI determines whether this plugin should be enabled and this is an attempt to
 	// pass through the variable configured in VPC CNI.
@@ -115,7 +120,7 @@ func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
 	context.Chain = utils.MustFormatChainNameWithPrefix(context.NetConf.Name, args.ContainerID, chainPrefix)
 	context.Comment = utils.FormatComment(context.NetConf.Name, args.ContainerID)
 
-	ipamResultI, err := ipam.ExecAdd(context.NetConf.IPAM.Type, args.StdinData)
+	ipamResultI, err := context.Ipam.ExecAdd(context.NetConf.IPAM.Type, args.StdinData)
 	if err != nil {
 		return fmt.Errorf("running IPAM plugin failed: %v", err)
 	}
@@ -134,18 +139,6 @@ func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
 
 	if len(context.TmpResult.IPs) == 0 {
 		return fmt.Errorf("IPAM plugin returned zero IPs")
-	}
-
-	// save container ns path into context
-	context.NsPath = args.Netns
-	// save args.IfName into context
-	context.ArgsIfName = args.IfName
-
-	// Convert MTU from string to int
-	context.Mtu, err = strconv.Atoi(context.NetConf.MTU)
-	if err != nil {
-		context.Log.Errorf("failed to parse MTU: %s, err: %v", context.NetConf.MTU, err)
-		return err
 	}
 
 	// IPv6 egress

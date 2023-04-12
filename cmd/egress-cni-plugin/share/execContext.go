@@ -14,6 +14,8 @@
 package share
 
 import (
+	"github.com/containernetworking/cni/pkg/types/current"
+
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
@@ -21,7 +23,6 @@ import (
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
-	"github.com/containernetworking/cni/pkg/types/current"
 )
 
 type Context struct {
@@ -34,7 +35,6 @@ type Context struct {
 	Veth       vethwrapper.Veth
 	Iptv4      networkutils.IptablesIface
 	Iptv6      networkutils.IptablesIface
-	Ipt        networkutils.IptablesIface
 
 	NetConf   *NetConf
 	Result    *current.Result

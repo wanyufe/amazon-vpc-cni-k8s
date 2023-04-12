@@ -11,13 +11,19 @@
 // express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package cni
+package cni_test
 
 import (
 	"fmt"
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
 	"net"
-	"testing"
+
+	"github.com/containernetworking/cni/pkg/types"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
 
 	"github.com/vishvananda/netlink"
 
@@ -25,106 +31,128 @@ import (
 
 	mock_nswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper/mocks"
 
-	mock_ipamwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper/mocks"
-	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
-	mock_procsyswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper/mocks"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
-	mock_veth "github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper/mocks"
 	"github.com/containernetworking/cni/pkg/types/current"
 	_ns "github.com/containernetworking/plugins/pkg/ns"
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
+
+	mock_ipamwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper/mocks"
+	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
+	mock_procsyswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper/mocks"
+	mock_veth "github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper/mocks"
 )
 
-func TestCmdAddEgressV4(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	ns := mock_nswrapper.NewMockNS(ctrl)
-	nsParent, err := _ns.GetCurrentNS() // mock_nswrapper.NewMockNS(ctrl)
-	assert.NoError(t, err)
+var _ = Describe("cni4", func() {
+	var ctrl *gomock.Controller
+	var ipt *mock_networkutils.MockIptablesIface
+	var context share.Context
+	var allowedResults []string
+	var actualResults []string
 
-	ipt := mock_networkutils.NewMockIptablesIface(ctrl)
-	ipam := mock_ipamwrapper.NewMockIpam(ctrl)
-	link := mock_netlinkwrapper.NewMockNetLink(ctrl)
-	veth := mock_veth.NewMockVeth(ctrl)
-	netConf := &share.NetConf{
-		NodeIP:         net.ParseIP("192.168.0.23"),
-		IfName:         "v4if0",
-		PluginLogFile:  "plugin.log",
-		PluginLogLevel: "DEBUG",
-	}
-	netConf.CNIVersion = "0.4.0"
-
-	log := logger.New(&logger.Configuration{
-		LogLevel:    netConf.PluginLogLevel,
-		LogLocation: netConf.PluginLogFile,
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		ipt = mock_networkutils.NewMockIptablesIface(ctrl)
+		context = setupContext(ctrl, ipt)
+		allowedResults = []string{"nat CNI-E6 -d 224.0.0.0/4 -j ACCEPT -m comment --comment unit-test-comment",
+			"nat CNI-E6 -j SNAT --to-source 192.168.0.23 -m comment --comment unit-test-comment --random-fully",
+			"nat POSTROUTING -s 169.254.172.100 -j CNI-E6 -m comment --comment unit-test-comment"}
+		actualResults = []string{}
+	})
+	AfterEach(func() {
+		ctrl.Finish()
 	})
 
-	procSys := mock_procsyswrapper.NewMockProcSys(ctrl)
+	Context("IPv4 egress setup when container is added", func() {
+		It("iptable chain and rules are added", func() {
+			setupAddΩ(context, &actualResults)
 
-	result := &current.Result{
-		CNIVersion: "0.4.0",
-		Interfaces: []*current.Interface{
-			{
-				Name: "eni3a52ce78095",
+			err := cni.CmdAddEgressV4(&context)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(len(actualResults)).Should(Equal(3))
+			for index, result := range actualResults {
+				Ω(result).Should(Equal(allowedResults[index]))
+			}
+		})
+	})
+})
+
+func setupContext(ctrl *gomock.Controller, ipt *mock_networkutils.MockIptablesIface) share.Context {
+	return share.Context{
+		Procsys: mock_procsyswrapper.NewMockProcSys(ctrl),
+		Ns:      mock_nswrapper.NewMockNS(ctrl),
+		NsPath:  "/var/run/netns/cni-xxxx",
+		Ipam:    mock_ipamwrapper.NewMockIpam(ctrl),
+		Link:    mock_netlinkwrapper.NewMockNetLink(ctrl),
+		Veth:    mock_veth.NewMockVeth(ctrl),
+		NetConf: &share.NetConf{
+			NetConf: types.NetConf{
+				CNIVersion: "0.4.0",
 			},
-			{
-				Name:    "eth0",
-				Sandbox: "/var/run/netns/testing",
+			NodeIP:         net.ParseIP("192.168.0.23"),
+			IfName:         "v4if0",
+			MTU:            "9001",
+			PluginLogFile:  "plugin.log",
+			PluginLogLevel: "DEBUG",
+		},
+		Log: logger.New(&logger.Configuration{
+			LogLevel:    "DEBUG",
+			LogLocation: "plugin.log",
+		}),
+		Iptv6:   ipt,
+		Iptv4:   ipt,
+		Chain:   "CNI-E6",
+		Comment: "unit-test-comment",
+
+		Result: &current.Result{
+			CNIVersion: "0.4.0",
+			Interfaces: []*current.Interface{
+				{
+					Name: "eni3a52ce78095",
+				},
+				{
+					Name:    "eth0",
+					Sandbox: "/var/run/netns/testing",
+				},
+			},
+			IPs: []*current.IPConfig{
+				{
+					Version: "4",
+					Address: net.IPNet{
+						IP:   net.ParseIP("192.168.1.100"),
+						Mask: net.CIDRMask(24, 32),
+					},
+					Interface: current.Int(1),
+				},
 			},
 		},
-		IPs: []*current.IPConfig{
-			{
-				Version: "4",
-				Address: net.IPNet{
-					IP:   net.ParseIP("192.168.1.100"),
-					Mask: net.CIDRMask(24, 32),
+		TmpResult: &current.Result{
+			CNIVersion: "0.4.0",
+			Interfaces: nil,
+			IPs: []*current.IPConfig{
+				{
+					Version: "4",
+					Address: net.IPNet{
+						IP:   net.ParseIP("169.254.172.100"),
+						Mask: net.CIDRMask(22, 32),
+					},
+					Gateway: net.ParseIP("169.254.172.1"),
 				},
-				Interface: current.Int(1),
 			},
 		},
 	}
-	tmpResult := &current.Result{
-		CNIVersion: "0.4.0",
-		Interfaces: nil,
-		IPs: []*current.IPConfig{
-			{
-				Version: "4",
-				Address: net.IPNet{
-					IP:   net.ParseIP("169.254.172.100"),
-					Mask: net.CIDRMask(22, 32),
-				},
-				Gateway: net.ParseIP("169.254.172.1"),
-			},
-		},
-	}
-	mtu := 9001
-	chain := "CNI-E6"
-	comment := "unit-test-comment"
-	nsPath := "/var/run/netns/cni-xxxx"
+}
+
+func setupAddΩ(c share.Context, acturalResults *[]string) {
+	nsParent, err := _ns.GetCurrentNS()
+	Ω(err).ToNot(HaveOccurred())
+
 	macHost := [6]byte{0xCB, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
 	macCont := [6]byte{0xCC, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
 
-	//	ipam.EXPECT().ExecAdd("local-host", gomock.Any()).Return(tmpResult, nil)
-	//&current.Result{
-	//	CNIVersion: "0.4.0",
-	//	Interfaces: nil,
-	//	IPs: []*current.IPConfig{
-	//		{
-	//			Version: "4",
-	//			Address: net.IPNet{
-	//				IP:   net.ParseIP("169.254.172.100"),
-	//				Mask: net.CIDRMask(22, 32),
-	//			},
-	//			Gateway: net.ParseIP("169.254.172.1"),
-	//		},
-	//	},
-	//}, nil)
-
-	ns.EXPECT().WithNetNSPath(nsPath, gomock.Any()).Do(func(_nsPath string, f func(_ns.NetNS) error) {
+	c.Ns.(*mock_nswrapper.MockNS).EXPECT().WithNetNSPath(c.NsPath, gomock.Any()).Do(func(_nsPath string, f func(_ns.NetNS) error) {
 		f(nsParent)
 	}).Return(nil)
 
-	veth.EXPECT().Setup(netConf.IfName, mtu, gomock.Any()).Return(
+	c.Veth.(*mock_veth.MockVeth).EXPECT().Setup(c.NetConf.IfName, c.Mtu, gomock.Any()).Return(
 		net.Interface{
 			Name:         "vethxxxx",
 			HardwareAddr: macHost[:],
@@ -135,34 +163,34 @@ func TestCmdAddEgressV4(t *testing.T) {
 		},
 		nil)
 
-	link.EXPECT().AddrAdd(gomock.Any(), gomock.Any()).Return(nil)
-	link.EXPECT().RouteAdd(gomock.Any()).Return(nil)
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().AddrAdd(gomock.Any(), gomock.Any()).Return(nil)
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteAdd(gomock.Any()).Return(nil)
 
-	link.EXPECT().LinkByName("vethxxxx").Return(
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("vethxxxx").Return(
 		&netlink.Veth{
 			LinkAttrs: netlink.LinkAttrs{
 				Name:  "vethxxxx",
 				Index: 100,
 			},
 		}, nil)
-	link.EXPECT().LinkByName("v4if0").Return(
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("v4if0").Return(
 		&netlink.Veth{
 			LinkAttrs: netlink.LinkAttrs{
 				Name:  "v4if0",
 				Index: 2,
 			},
 		}, nil)
-	link.EXPECT().RouteDel(gomock.Any()).Do(func(arg1 interface{}) error {
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteDel(gomock.Any()).Do(func(arg1 interface{}) error {
 		r := arg1.(*netlink.Route)
 		expectedResult := &net.IPNet{
 			IP:   net.ParseIP("169.254.172.0"),
 			Mask: net.CIDRMask(22, 32),
 		}
-		assert.EqualValuesf(t, expectedResult.String(), r.Dst.String(), "expect route %s needs to be removed, received route %s", expectedResult.String(), r.Dst.String())
+		Ω(r.Dst.String()).To(Equal(expectedResult.String()))
 		return nil
 	}).Return(nil)
 
-	link.EXPECT().RouteAdd(gomock.Any()).Do(func(arg1 interface{}) error {
+	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteAdd(gomock.Any()).Do(func(arg1 interface{}) error {
 		r := arg1.(*netlink.Route)
 		// container route adding
 		if r.LinkIndex == 2 {
@@ -175,7 +203,7 @@ func TestCmdAddEgressV4(t *testing.T) {
 				Src: net.ParseIP("169.254.172.100"),
 				Gw:  net.ParseIP("169.254.172.1"),
 			}
-			assert.EqualValuesf(t, expectedResult.String(), r.String(), "expect route %s needs to be added, received route %s", expectedResult.String(), r.Dst.String())
+			Ω(r.String()).To(Equal(expectedResult.String()))
 			return nil
 		}
 		// host route adding
@@ -187,46 +215,23 @@ func TestCmdAddEgressV4(t *testing.T) {
 					Mask: net.CIDRMask(32, 32),
 				},
 			}
-			assert.EqualValuesf(t, expectedResult.String(), r.String(), "expect route %s needs to be added, received route %s", expectedResult.String(), r.Dst.String())
+			Ω(r.String()).To(Equal(expectedResult.String()))
 			return nil
 		}
 		return fmt.Errorf("link index %d not valid", r.LinkIndex)
 	}).Return(nil).Times(2)
 
-	ipam.EXPECT().ConfigureIface("v4if0", gomock.Any()).Return(nil)
-	procSys.EXPECT().Get("/proc/sys/net/ipv4/ip_forward").Return("0", nil)
-	procSys.EXPECT().Set("/proc/sys/net/ipv4/ip_forward", "1").Return(nil)
-	ipt.EXPECT().HasRandomFully().Return(true)
-	ipt.EXPECT().ListChains("nat").Return([]string{"POSTROUTING", chain}, nil)
+	c.Ipam.(*mock_ipamwrapper.MockIpam).EXPECT().ConfigureIface("v4if0", gomock.Any()).Return(nil)
+	c.Procsys.(*mock_procsyswrapper.MockProcSys).EXPECT().Get("net/ipv4/ip_forward").Return("0", nil)
+	c.Procsys.(*mock_procsyswrapper.MockProcSys).EXPECT().Set("net/ipv4/ip_forward", "1").Return(nil)
+	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().HasRandomFully().Return(true)
+	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().ListChains("nat").Return([]string{"POSTROUTING", c.Chain}, nil)
 
-	expectedResults := []string{"nat CNI-E6 -d 224.0.0.0/4 -j ACCEPT -m comment --comment unit-test-comment",
-		"nat CNI-E6 -j SNAT --to-source 192.168.0.23 -m comment --comment unit-test-comment --random-fully",
-		"nat POSTROUTING -s 169.254.172.100 -j CNI-E6 -m comment --comment unit-test-comment"}
-	expectedResultsMeet := []bool{false, false, false}
-	ipt.EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1 interface{}, arg2 interface{}, arg3 ...interface{}) {
+	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1 interface{}, arg2 interface{}, arg3 ...interface{}) {
 		actualResult := arg1.(string) + " " + arg2.(string)
 		for _, arg := range arg3 {
 			actualResult += " " + arg.(string)
 		}
-		found := false
-		for index, expect := range expectedResults {
-			if expect == actualResult {
-				expectedResultsMeet[index] = true
-				found = true
-			}
-		}
-		if !found {
-			assert.Failf(t, "%s is not expected to add into iptables", actualResult)
-		}
-	}).Return(nil).AnyTimes()
-
-	err = CmdAddEgressV4(procSys, ipt, ns, nsPath, ipam, link, veth, netConf, result, tmpResult, mtu, chain, comment, log)
-	assert.NoError(t, err)
-
-	for index, exp := range expectedResultsMeet {
-		if !exp {
-			assert.Failf(t, "%s is not added to ipatables", expectedResults[index])
-		}
-	}
-
+		*acturalResults = append(*acturalResults, actualResult)
+	}).Return(nil).Times(3)
 }
