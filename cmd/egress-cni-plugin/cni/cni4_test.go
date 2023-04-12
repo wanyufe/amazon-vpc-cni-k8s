@@ -63,7 +63,7 @@ var _ = Describe("cni4", func() {
 
 	Context("IPv4 egress setup when container is added", func() {
 		It("iptable chain and rules are added", func() {
-			setupAddΩ(context, &actualResults)
+			setupAddExpect(context, &actualResults)
 
 			err := cni.CmdAddEgressV4(&context)
 			Ω(err).ShouldNot(HaveOccurred())
@@ -141,7 +141,7 @@ func setupContext(ctrl *gomock.Controller, ipt *mock_networkutils.MockIptablesIf
 	}
 }
 
-func setupAddΩ(c share.Context, acturalResults *[]string) {
+func setupAddExpect(c share.Context, acturalResults *[]string) {
 	nsParent, err := _ns.GetCurrentNS()
 	Ω(err).ToNot(HaveOccurred())
 
