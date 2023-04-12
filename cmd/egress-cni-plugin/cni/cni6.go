@@ -159,6 +159,34 @@ func disableInterfaceIPv6(context *share.Context) error { //netns nswrapper.NS, 
 	})
 }
 
+//	containerIPv6, err := cniutils.GetIPsByInterfaceName(context.Link, context.Ns, context.NsPath, containerInterface.Name, func(ip net.IP) bool {
+//			return ip.To4() == nil && ip.IsGlobalUnicast()
+//		})
+func getContainerIpv6GlobalAddrs(context *share.Context, ifName string) (containerIPv6 []net.IP, err error) {
+	if context.NsPath != "" {
+		err = context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
+			link, err := context.Link.LinkByName(ifName)
+			if err != nil {
+				return err
+			}
+			addrs, err := context.Link.AddrList(link, netlink.FAMILY_V6)
+			if err != nil {
+				return err
+			}
+			for _, addr := range addrs {
+				if addr.IP.IsGlobalUnicast() {
+					containerIPv6 = append(containerIPv6, addr.IP)
+				}
+			}
+			return nil
+		})
+	}
+	if err != nil {
+		return nil, err
+	}
+	return containerIPv6, nil
+}
+
 // CmdAddEgressV6 exec necessary settings to support IPv6 egress traffic in EKS IPv4 cluster
 func CmdAddEgressV6(context *share.Context) (err error) { // ipt networkutils.IptablesIface, netns nswrapper.NS, nsPath string, ipam ipamwrapper.Ipam,
 	//link netlinkwrapper.NetLink, veth vethwrapper.Veth, netConf *share.NetConf, result, tmpResult *current.Result,
@@ -188,14 +216,15 @@ func CmdAddEgressV6(context *share.Context) (err error) { // ipt networkutils.Ip
 	context.Log.Debugf("veth pair created for container IPv6 egress traffic, container interface: %s ,host interface: %s",
 		containerInterface.Name, hostInterface.Name)
 
-	containerIPv6, err := cniutils.GetIPsByInterfaceName(context.Ns, context.NsPath, containerInterface.Name, func(ip net.IP) bool {
-		return ip.To4() == nil && ip.IsGlobalUnicast()
-	})
+	containerIPv6, err := getContainerIpv6GlobalAddrs(context, containerInterface.Name)
 	if err != nil {
 		return err
 	}
 	if len(containerIPv6) > 1 {
 		context.Log.Warnf("more than one IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
+	} else if len(containerIPv6) < 1 {
+		context.Log.Errorf("no IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
+		return fmt.Errorf("no IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
 	}
 	err = setupContainerIPv6Route(context.Ns, context.NsPath, context.Link, hostInterface, containerInterface)
 	if err != nil {
@@ -241,6 +270,9 @@ func CmdDelEgressV6(context *share.Context) (err error) {
 				return nil
 			}
 			contIPAddrs, err = context.Link.AddrList(containerLink, netlink.FAMILY_V6)
+			if err != nil {
+				context.Log.Debugf("failed to get container link %s IPv6 address, host may leave NAT rules uncleared: %v", containerLink.Attrs().Name, err)
+			}
 			err = context.Link.LinkDel(containerLink)
 			if err != nil {
 				context.Log.Debugf("failed to delete veth %s in container: %v", containerLink.Attrs().Name, err)

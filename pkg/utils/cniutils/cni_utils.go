@@ -3,18 +3,15 @@ package cniutils
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"syscall"
 	"time"
 
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper"
+	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/vishvananda/netlink"
 
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/utils/imds"
-	"github.com/containernetworking/cni/pkg/types/current"
-	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/vishvananda/netlink"
 )
 
 func FindInterfaceByName(ifaceList []*current.Interface, ifaceName string) (ifaceIndex int, iface *current.Interface, found bool) {
@@ -72,36 +69,6 @@ func WaitForAddressesToBeStable(netLink netlinkwrapper.NetLink, ifName string, t
 
 		time.Sleep(waitInterval)
 	}
-}
-
-// GetIPsByInterfaceName returns IPs in a provided interface within provided network namespace, and filtered by provided func
-// if provided ns is nil, return result in root ns or caller's current ns context
-func GetIPsByInterfaceName(netns nswrapper.NS, nsPath, ifName string, filter func(net.IP) bool) (containerIPv6 []net.IP, err error) {
-	var worker = func(ifName string, filter func(net.IP) bool) error {
-		containerIf, err := net.InterfaceByName(ifName)
-		if err != nil {
-			return err
-		}
-		addrs, err := containerIf.Addrs()
-		if err != nil {
-			return err
-		}
-		for _, addr := range addrs {
-			ip := addr.(*net.IPNet).IP
-			if filter(ip) {
-				containerIPv6 = append(containerIPv6, ip)
-			}
-		}
-		return nil
-	}
-	if netns != nil {
-		err = netns.WithNetNSPath(nsPath, func(hostNS ns.NetNS) error {
-			return worker(ifName, filter)
-		})
-	} else {
-		err = worker(ifName, filter)
-	}
-	return containerIPv6, err
 }
 
 // GetHostPrimaryInterfaceName returns host primary interface name, for example, `eth0`
