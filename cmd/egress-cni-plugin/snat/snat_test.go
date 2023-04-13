@@ -1,80 +1,145 @@
-package snat
+package snat_test
 
 import (
 	"net"
-	"strings"
-	"testing"
 
-	mock_iptables "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
-	"github.com/stretchr/testify/assert"
+	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
+	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
 )
 
-var multicastRange = "ff00::/8"
-var target = net.ParseIP("2600::")
-var src = net.ParseIP("fd00::1")
-var chain = "CNI-E6-001"
-var comment = "unit-test-comment"
-var randomizeSNAT = "hashrandom"
+var (
+	ipv6MulticastRange = "ff00::/8"
+	ipv4MulticastRange = "224.0.0.0/4"
 
-var expectedChainRules = []string{
-	"-A CNI-E6-001 -d ff00::/8 -j ACCEPT -m comment --comment unit-test-comment",
-	"-A CNI-E6-001 -j SNAT --to-source 2600:: -m comment --comment unit-test-comment --random",
+	containerIpv4 = net.ParseIP("169.254.172.100")
+	containerIpv6 = net.ParseIP("fd00::10")
+	nodeIp        = net.ParseIP("2600::")
+
+	chain   = "CNI-E6"
+	comment = "unit-test-comment"
+	rndSNAT = "hashrandom"
+)
+
+var _ = Describe("Snat", func() {
+	var ctrl *gomock.Controller
+	var ipt *mock_networkutils.MockIptablesIface
+	//var context share.Context
+
+	var expectChain []string
+	var actualChain []string
+
+	var expectRule []string
+	var actualRule []string
+
+	var expectClearChain []string
+	var actualClearChain []string
+
+	var expectDeleteChain []string
+	var actualDeleteChain []string
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+	})
+	AfterEach(func() {
+		ctrl.Finish()
+	})
+
+	Context("when container add/create", func() {
+		BeforeEach(func() {
+			ipt = mock_networkutils.NewMockIptablesIface(ctrl)
+
+			expectChain = []string{chain}
+			actualChain = []string{}
+
+			expectRule = []string{
+				"nat CNI-E6 -d ff00::/8 -j ACCEPT -m comment --comment unit-test-comment",
+				"nat CNI-E6 -j SNAT --to-source 2600:: -m comment --comment unit-test-comment --random",
+				"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment",
+			}
+			actualRule = []string{}
+
+			setupAddExpect(ipt, &actualChain, &actualRule)
+
+			err := snat.Add(ipt, nodeIp, containerIpv6, ipv6MulticastRange, chain, comment, rndSNAT)
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("create iptables chain", func() {
+			Ω(actualChain).Should(Equal(expectChain))
+		})
+
+		It("create iptables rule", func() {
+			Ω(actualRule).Should(Equal(expectRule))
+		})
+	})
+
+	Context("when container delete/remove", func() {
+		BeforeEach(func() {
+			ipt = mock_networkutils.NewMockIptablesIface(ctrl)
+
+			expectClearChain = []string{chain}
+			actualClearChain = []string{}
+
+			expectDeleteChain = []string{chain}
+			actualDeleteChain = []string{}
+
+			expectRule = []string{"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment"}
+			actualRule = []string{}
+
+			setupDelExpect(ipt, &actualClearChain, &actualDeleteChain, &actualRule)
+
+			err := snat.Del(ipt, containerIpv6, chain, comment)
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("clear/delete iptables chain", func() {
+			Ω(actualClearChain).Should(Equal(expectClearChain))
+			Ω(actualDeleteChain).Should(Equal(expectDeleteChain))
+		})
+
+		It("delete iptables rule", func() {
+			Ω(actualRule).Should(Equal(expectRule))
+		})
+	})
+})
+
+func setupAddExpect(ipt networkutils.IptablesIface, actualNewChain, actualNewRule *[]string) {
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().ListChains("nat").Return(
+		[]string{"POSTROUTING"}, nil)
+
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().NewChain("nat", gomock.Any()).Do(func(_, arg1 interface{}) {
+		chain := arg1.(string)
+		*actualNewChain = append(*actualNewChain, chain)
+	}).Return(nil)
+
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
+		rule := arg1.(string) + " " + arg2.(string)
+		for _, arg := range arg3 {
+			rule += " " + arg.(string)
+		}
+		*actualNewRule = append(*actualNewRule, rule)
+	}).Return(nil).AnyTimes()
 }
-var expectedPOSTROUTINGRules = []string{
-	"-A POSTROUTING -s fd00::1 -j CNI-E6-001 -m comment --comment unit-test-comment",
-}
 
-func TestAdd(t *testing.T) {
+func setupDelExpect(ipt networkutils.IptablesIface, actualClearChain, actualDeleteChain, actualRule *[]string) {
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().ClearChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
+		*actualClearChain = append(*actualClearChain, arg2.(string))
+	}).Return(nil)
 
-	ipt := mock_iptables.NewMockIptables()
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().DeleteChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
+		*actualDeleteChain = append(*actualDeleteChain, arg2.(string))
+	}).Return(nil)
 
-	err := Add(ipt, multicastRange, target, src, chain, comment, randomizeSNAT)
-	assert.NoError(t, err)
-
-	rules, err := ipt.List("nat", chain)
-	assert.NoError(t, err)
-
-	for index, rule := range rules {
-		assert.EqualValuesf(t, expectedChainRules[index], rule, "%s chain rules, expected: %s, actual: %s", chain, expectedChainRules[index], rule)
-	}
-
-	rules, err = ipt.List("nat", "POSTROUTING")
-	assert.NoError(t, err)
-
-	for index, rule := range rules {
-		assert.EqualValuesf(t, expectedPOSTROUTINGRules[index], rule, "POSTROUTING chain rules, expected: %s, actual: %s", expectedPOSTROUTINGRules[index], rule)
-	}
-}
-
-func TestDel(t *testing.T) {
-	ipt := mock_iptables.NewMockIptables()
-
-	// pre-populate chain/rule into iptables
-	err := ipt.NewChain("nat", chain)
-	assert.NoError(t, err)
-
-	for _, rule := range expectedChainRules {
-		err = ipt.AppendUnique("nat", chain, strings.Split(rule, " ")[2:]...)
-		assert.NoError(t, err)
-	}
-
-	for _, rule := range expectedPOSTROUTINGRules {
-		err = ipt.AppendUnique("nat", "POSTROUTING", strings.Split(rule, " ")[2:]...)
-		assert.NoError(t, err)
-	}
-
-	err = Del(ipt, src, chain, comment)
-	assert.NoError(t, err)
-
-	var expectedLeftRule []string
-
-	actualChainRules, err := ipt.List("nat", chain)
-	assert.NoError(t, err)
-	assert.EqualValuesf(t, expectedLeftRule, actualChainRules, "chain %s has rules not removed, %s", chain, actualChainRules)
-
-	actualPOSTROUTINGRules, err := ipt.List("nat", "POSTROUTING")
-	assert.NoError(t, err)
-
-	assert.EqualValuesf(t, expectedLeftRule, actualPOSTROUTINGRules, "chain %s has rules not removed, %s", "POSTROUTING", actualPOSTROUTINGRules)
-
+	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().Delete("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
+		rule := arg1.(string) + " " + arg2.(string)
+		for _, arg := range arg3 {
+			rule += " " + arg.(string)
+		}
+		*actualRule = append(*actualRule, rule)
+	}).Return(nil).AnyTimes()
 }

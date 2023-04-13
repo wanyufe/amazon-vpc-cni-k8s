@@ -84,16 +84,10 @@ var _ = Describe("cni4", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 		It("iptables chain and rules are removed", func() {
-			Ω(len(actualIptablesDel)).Should(Equal(len(expectIptablesDel)))
-			for index, iptDel := range actualIptablesDel {
-				Ω(iptDel).Should(Equal(expectIptablesDel[index]))
-			}
+			Ω(actualIptablesDel).Should(Equal(expectIptablesDel))
 		})
 		It("link removed in container", func() {
-			Ω(len(actualLinkDel)).Should(Equal(len(expectLinkDel)))
-			for index, linkDel := range actualLinkDel {
-				Ω(linkDel).Should(Equal(expectLinkDel[index]))
-			}
+			Ω(actualLinkDel).Should(Equal(expectLinkDel))
 		})
 		It("route removed in host", func() {
 
@@ -268,7 +262,7 @@ func setupAddExpectV4(c share.Context, actualIptablesRules, actualRouteAdd, actu
 	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().HasRandomFully().Return(true)
 	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().ListChains("nat").Return([]string{"POSTROUTING", c.Chain}, nil)
 
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1 interface{}, arg2 interface{}, arg3 ...interface{}) {
+	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
 		actualResult := arg1.(string) + " " + arg2.(string)
 		for _, arg := range arg3 {
 			actualResult += " " + arg.(string)

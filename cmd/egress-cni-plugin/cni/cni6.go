@@ -57,12 +57,12 @@ func setupHostIPv6Route(hostInterface *current.Interface, containerIPv6 net.IP, 
 	})
 }
 
-func setupContainerVethIPv6(context *share.Context) (hostInterface, containerInterface *current.Interface, err error) {
-	err = context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
+func setupContainerVethIPv6(c *share.Context) (hostInterface, containerInterface *current.Interface, err error) {
+	err = c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
 		var hostVeth net.Interface
 		var contVeth net.Interface
 
-		hostVeth, contVeth, err = context.Veth.Setup(context.NetConf.IfName, context.Mtu, hostNS)
+		hostVeth, contVeth, err = c.Veth.Setup(c.NetConf.IfName, c.Mtu, hostNS)
 		if err != nil {
 			return err
 		}
@@ -74,20 +74,20 @@ func setupContainerVethIPv6(context *share.Context) (hostInterface, containerInt
 		containerInterface = &current.Interface{
 			Name:    contVeth.Name,
 			Mac:     contVeth.HardwareAddr.String(),
-			Sandbox: context.NsPath,
+			Sandbox: c.NsPath,
 		}
-		context.TmpResult.Interfaces = []*current.Interface{hostInterface, containerInterface}
-		for _, ipc := range context.TmpResult.IPs {
+		c.TmpResult.Interfaces = []*current.Interface{hostInterface, containerInterface}
+		for _, ipc := range c.TmpResult.IPs {
 			// Address (IPv6 ULA address) apply to the container veth interface - v6if0
 			ipc.Interface = current.Int(1)
 		}
 
-		err = context.Ipam.ConfigureIface(context.NetConf.IfName, context.TmpResult)
+		err = c.Ipam.ConfigureIface(c.NetConf.IfName, c.TmpResult)
 		if err != nil {
 			return err
 		}
 
-		return cniutils.WaitForAddressesToBeStable(context.Link, contVeth.Name, DadTimeout, WaitInterval)
+		return cniutils.WaitForAddressesToBeStable(c.Link, contVeth.Name, DadTimeout, WaitInterval)
 	})
 	return hostInterface, containerInterface, err
 }
@@ -147,29 +147,29 @@ func mergeResult(result *current.Result, tmpResult *current.Result) {
 	}
 }
 
-func disableInterfaceIPv6(context *share.Context) error { //netns nswrapper.NS, nsPath, ifName string) error {
-	return context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
-		var entry = "net/ipv6/conf/" + context.ArgsIfName + "/disable_ipv6"
-		if content, err := context.Procsys.Get(entry); err == nil {
+func disableInterfaceIPv6(c *share.Context) error { //netns nswrapper.NS, nsPath, ifName string) error {
+	return c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
+		var entry = "net/ipv6/conf/" + c.ArgsIfName + "/disable_ipv6"
+		if content, err := c.Procsys.Get(entry); err == nil {
 			if strings.TrimSpace(content) == "1" {
 				return nil
 			}
 		}
-		return context.Procsys.Set(entry, "1")
+		return c.Procsys.Set(entry, "1")
 	})
 }
 
 //	containerIPv6, err := cniutils.GetIPsByInterfaceName(context.Link, context.Ns, context.NsPath, containerInterface.Name, func(ip net.IP) bool {
 //			return ip.To4() == nil && ip.IsGlobalUnicast()
 //		})
-func getContainerIpv6GlobalAddrs(context *share.Context, ifName string) (containerIPv6 []net.IP, err error) {
-	if context.NsPath != "" {
-		err = context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
-			link, err := context.Link.LinkByName(ifName)
+func getContainerIpv6GlobalAddrs(c *share.Context, ifName string) (containerIPv6 []net.IP, err error) {
+	if c.NsPath != "" {
+		err = c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
+			link, err := c.Link.LinkByName(ifName)
 			if err != nil {
 				return err
 			}
-			addrs, err := context.Link.AddrList(link, netlink.FAMILY_V6)
+			addrs, err := c.Link.AddrList(link, netlink.FAMILY_V6)
 			if err != nil {
 				return err
 			}
@@ -188,7 +188,7 @@ func getContainerIpv6GlobalAddrs(context *share.Context, ifName string) (contain
 }
 
 // CmdAddEgressV6 exec necessary settings to support IPv6 egress traffic in EKS IPv4 cluster
-func CmdAddEgressV6(context *share.Context) (err error) { // ipt networkutils.IptablesIface, netns nswrapper.NS, nsPath string, ipam ipamwrapper.Ipam,
+func CmdAddEgressV6(c *share.Context) (err error) { // ipt networkutils.IptablesIface, netns nswrapper.NS, nsPath string, ipam ipamwrapper.Ipam,
 	//link netlinkwrapper.NetLink, veth vethwrapper.Veth, netConf *share.NetConf, result, tmpResult *current.Result,
 	//mtu int, argsIfName, chain, comment string, log logger.Logger) error {
 	// per best practice, a new veth pair is created between container ns and node ns
@@ -201,83 +201,83 @@ func CmdAddEgressV6(context *share.Context) (err error) { // ipt networkutils.Ip
 	//  5. all containers IPv6 egress traffic share node primary interface through SNAT
 
 	// first disable IPv6 on container's primary interface (eth0)
-	err = disableInterfaceIPv6(context)
+	err = disableInterfaceIPv6(c)
 	if err != nil {
-		context.Log.Errorf("failed to disable IPv6 on container interface %s", context.ArgsIfName)
+		c.Log.Errorf("failed to disable IPv6 on container interface %s", c.ArgsIfName)
 		return err
 	}
 
-	hostInterface, containerInterface, err := setupContainerVethIPv6(context)
+	hostInterface, containerInterface, err := setupContainerVethIPv6(c)
 	if err != nil {
-		context.Log.Errorf("veth created failed, ns: %s name: %s, mtu: %d, ipam-result: %+v err: %v",
-			context.NsPath, context.NetConf.IfName, context.Mtu, *context.TmpResult, err)
+		c.Log.Errorf("veth created failed, ns: %s name: %s, mtu: %d, ipam-result: %+v err: %v",
+			c.NsPath, c.NetConf.IfName, c.Mtu, *c.TmpResult, err)
 		return err
 	}
-	context.Log.Debugf("veth pair created for container IPv6 egress traffic, container interface: %s ,host interface: %s",
+	c.Log.Debugf("veth pair created for container IPv6 egress traffic, container interface: %s ,host interface: %s",
 		containerInterface.Name, hostInterface.Name)
 
-	containerIPv6, err := getContainerIpv6GlobalAddrs(context, containerInterface.Name)
+	containerIPv6, err := getContainerIpv6GlobalAddrs(c, containerInterface.Name)
 	if err != nil {
 		return err
 	}
 	if len(containerIPv6) > 1 {
-		context.Log.Warnf("more than one IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
+		c.Log.Warnf("more than one IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
 	} else if len(containerIPv6) < 1 {
-		context.Log.Errorf("no IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
+		c.Log.Errorf("no IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
 		return fmt.Errorf("no IPv6 global unicast address found, ifName: %s, IPs: %s", containerInterface.Name, containerIPv6)
 	}
-	err = setupContainerIPv6Route(context.Ns, context.NsPath, context.Link, hostInterface, containerInterface)
+	err = setupContainerIPv6Route(c.Ns, c.NsPath, c.Link, hostInterface, containerInterface)
 	if err != nil {
-		context.Log.Errorf("setupContainerIPv6Route failed: %v", err)
+		c.Log.Errorf("setupContainerIPv6Route failed: %v", err)
 		return err
 	}
-	context.Log.Debugf("container route set up successfully")
+	c.Log.Debugf("container route set up successfully")
 
-	err = setupHostIPv6Route(hostInterface, containerIPv6[0], context.Link)
+	err = setupHostIPv6Route(hostInterface, containerIPv6[0], c.Link)
 	if err != nil {
-		context.Log.Errorf("setupHostIPv6Route failed: %v", err)
+		c.Log.Errorf("setupHostIPv6Route failed: %v", err)
 		return err
 	}
-	context.Log.Debugf("host IPv6 route set up successfully")
+	c.Log.Debugf("host IPv6 route set up successfully")
 
 	// set up SNAT in host for container IPv6 egress traffic
 	// following line adds an ip6tables entries to NAT from pod IPv6 address to node IPv6 address assigned to primary ENI
-	err = snat.Add(context.Iptv6, context, ipv6MulticastRange, containerIPv6[0])
+	err = snat.Add(c.Iptv6, c.NetConf.NodeIP, containerIPv6[0], ipv6MulticastRange, c.Chain, c.Comment, c.NetConf.RandomizeSNAT)
 	if err != nil {
-		context.Log.Errorf("setup host snat failed: %v", err)
+		c.Log.Errorf("setup host snat failed: %v", err)
 		return err
 	}
 
-	context.Log.Debugf("host IPv6 SNAT set up successfully")
+	c.Log.Debugf("host IPv6 SNAT set up successfully")
 
-	mergeResult(context.Result, context.TmpResult)
-	context.Log.Debugf("output result: %+v", *context.Result)
+	mergeResult(c.Result, c.TmpResult)
+	c.Log.Debugf("output result: %+v", *c.Result)
 
 	// Pass through the previous result
-	return types.PrintResult(context.Result, context.NetConf.CNIVersion)
+	return types.PrintResult(c.Result, c.NetConf.CNIVersion)
 }
 
 // CmdDelEgressV6 exec clear the setting to support IPv6 egress traffic in EKS IPv4 cluster
-func CmdDelEgressV6(context *share.Context) (err error) {
+func CmdDelEgressV6(c *share.Context) (err error) {
 	var contIPAddrs []netlink.Addr
 
-	if context.NsPath != "" {
-		err = context.Ns.WithNetNSPath(context.NsPath, func(hostNS ns.NetNS) error {
+	if c.NsPath != "" {
+		err = c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
 			var containerLink netlink.Link
-			containerLink, err = context.Link.LinkByName(context.NetConf.IfName)
+			containerLink, err = c.Link.LinkByName(c.NetConf.IfName)
 			if err != nil {
-				context.Log.Debugf("failed to get link by name %s: %v", context.NetConf.IfName, err)
+				c.Log.Debugf("failed to get link by name %s: %v", c.NetConf.IfName, err)
 				return nil
 			}
-			contIPAddrs, err = context.Link.AddrList(containerLink, netlink.FAMILY_V6)
+			contIPAddrs, err = c.Link.AddrList(containerLink, netlink.FAMILY_V6)
 			if err != nil {
-				context.Log.Debugf("failed to get container link %s IPv6 address, host may leave NAT rules uncleared: %v", containerLink.Attrs().Name, err)
+				c.Log.Debugf("failed to get container link %s IPv6 address, host may leave NAT rules uncleared: %v", containerLink.Attrs().Name, err)
 			}
-			err = context.Link.LinkDel(containerLink)
+			err = c.Link.LinkDel(containerLink)
 			if err != nil {
-				context.Log.Debugf("failed to delete veth %s in container: %v", containerLink.Attrs().Name, err)
+				c.Log.Debugf("failed to delete veth %s in container: %v", containerLink.Attrs().Name, err)
 			} else {
-				context.Log.Debugf("Successfully deleted veth %s in container", containerLink.Attrs().Name)
+				c.Log.Debugf("Successfully deleted veth %s in container", containerLink.Attrs().Name)
 			}
 			return err
 		})
@@ -286,11 +286,11 @@ func CmdDelEgressV6(context *share.Context) (err error) {
 	// range loop exec 0 times if confIPNets is nil
 	for _, contIPAddr := range contIPAddrs {
 		// remove host SNAT chain/rule for container
-		err = snat.Del(context.Iptv6, contIPAddr.IP, context.Chain, context.Comment)
+		err = snat.Del(c.Iptv6, contIPAddr.IP, c.Chain, c.Comment)
 		if err != nil {
-			context.Log.Errorf("Delete host SNAT for container IPv6 %s failed: %v.", contIPAddr.IP.String(), err)
+			c.Log.Errorf("Delete host SNAT for container IPv6 %s failed: %v.", contIPAddr.IP.String(), err)
 		}
-		context.Log.Debugf("Successfully deleted SNAT chain/rule for container IPv6 egress traffic: %s", contIPAddr.IP.String())
+		c.Log.Debugf("Successfully deleted SNAT chain/rule for container IPv6 egress traffic: %s", contIPAddr.IP.String())
 	}
 
 	return nil
