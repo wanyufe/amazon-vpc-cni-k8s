@@ -48,9 +48,10 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/containernetworking/cni/pkg/types"
+
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/cniutils"
 	"github.com/aws/amazon-vpc-cni-k8s/utils/cp"
-	"github.com/containernetworking/cni/pkg/types"
 )
 
 const (
@@ -67,7 +68,7 @@ const (
 	defaultEgressPluginLogFile   = "/var/log/aws-routed-eni/egress-plugin.log"
 	defaultPluginLogLevel        = "Debug"
 	defaultEnableIPv6            = "false"
-	defaultEnableEngress         = "true"
+	defaultEnableV6Egress        = "false"
 	egressIPv4Subnet             = "169.254.172.0/22"
 	egressIPv6Subnet             = "fd00::/8"
 	egressIPv4Dst                = "0.0.0.0/0"
@@ -93,7 +94,7 @@ const (
 	envWarmPrefixTarget      = "WARM_PREFIX_TARGET"
 	envEnBandwidthPlugin     = "ENABLE_BANDWIDTH_PLUGIN"
 	envEnIPv6                = "ENABLE_IPv6"
-	envEnEgress              = "ENABLE_ENGRESS"
+	envEnV6Egress            = "ENABLE_V6_EGRESS"
 	envRandomizeSNAT         = "AWS_VPC_K8S_CNI_RANDOMIZESNAT"
 	envEnableNftables        = "ENABLE_NFTABLES"
 )
@@ -285,7 +286,7 @@ func generateJSON(jsonFile string, outFile string, getPrimaryIP func(isIPv4 bool
 		// EKS IPv4 cluster
 		egressIPSubnet = egressIPv6Subnet
 		egressIPDst = egressIPv6Dst
-		egressEnabled = getEnv(envEnEgress, defaultEnableEngress)
+		egressEnabled = getEnv(envEnV6Egress, defaultEnableV6Egress)
 		egressPluginLogFile = getEnv(envEgressPluginLogFile, defaultEgressPluginLogFile)
 		if egressEnabled == "true" {
 			nodeIP, err = getPrimaryIP(false) // getNodePrimaryV6Address()
