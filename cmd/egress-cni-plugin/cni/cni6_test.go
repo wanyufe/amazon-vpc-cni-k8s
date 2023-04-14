@@ -120,7 +120,6 @@ var _ = Describe("cni6", func() {
 		})
 		It("route replaced in container and host", func() {
 			Ω(actualRouteReplace).To(Equal(expectRouteReplace))
-			//}
 		})
 		It("route added in container and host", func() {
 			Ω(actualRouteAdd).To(Equal(expectRouteAdd))
@@ -218,9 +217,6 @@ func setupAddExpectV6(c share.Context, actualIptablesRules, actualRouteAdd, actu
 		},
 		nil)
 
-	//c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().AddrAdd(gomock.Any(), gomock.Any()).Return(nil)
-	//c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteAdd(gomock.Any()).Return(nil)
-
 	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("vethxxxx").Return(
 		&netlink.Veth{
 			LinkAttrs: netlink.LinkAttrs{
@@ -293,9 +289,6 @@ func setupAddExpectV6(c share.Context, actualIptablesRules, actualRouteAdd, actu
 func setupDelExpectV6(c share.Context, actualLinkDel, actualIptablesDel *[]string) {
 	nsParent, err := _ns.GetCurrentNS()
 	Ω(err).ToNot(HaveOccurred())
-
-	//macHost := [6]byte{0xCB, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
-	//macCont := [6]byte{0xCC, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
 
 	c.Ns.(*mock_nswrapper.MockNS).EXPECT().WithNetNSPath(c.NsPath, gomock.Any()).Do(func(_nsPath string, f func(_ns.NetNS) error) {
 		f(nsParent)

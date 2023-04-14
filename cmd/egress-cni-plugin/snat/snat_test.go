@@ -12,23 +12,22 @@ import (
 	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
 )
 
-var (
+const (
 	ipv6MulticastRange = "ff00::/8"
-	ipv4MulticastRange = "224.0.0.0/4"
-
-	containerIpv4 = net.ParseIP("169.254.172.100")
-	containerIpv6 = net.ParseIP("fd00::10")
-	nodeIp        = net.ParseIP("2600::")
 
 	chain   = "CNI-E6"
 	comment = "unit-test-comment"
 	rndSNAT = "hashrandom"
 )
 
+var (
+	containerIpv6 = net.ParseIP("fd00::10")
+	nodeIp        = net.ParseIP("2600::")
+)
+
 var _ = Describe("Snat", func() {
 	var ctrl *gomock.Controller
 	var ipt *mock_networkutils.MockIptablesIface
-	//var context share.Context
 
 	var expectChain []string
 	var actualChain []string
