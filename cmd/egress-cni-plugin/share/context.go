@@ -25,6 +25,7 @@ import (
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
 )
 
+// Context includes all info to run container ADD/DEL action
 type Context struct {
 	Procsys    procsyswrapper.ProcSys
 	Ipam       ipamwrapper.Ipam

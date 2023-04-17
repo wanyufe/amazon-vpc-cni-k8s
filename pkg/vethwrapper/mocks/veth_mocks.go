@@ -49,20 +49,6 @@ func (m *MockVeth) EXPECT() *MockVethMockRecorder {
 	return m.recorder
 }
 
-// ErrorLinkNotFound mocks base method.
-func (m *MockVeth) ErrorLinkNotFound() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ErrorLinkNotFound")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ErrorLinkNotFound indicates an expected call of ErrorLinkNotFound.
-func (mr *MockVethMockRecorder) ErrorLinkNotFound() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorLinkNotFound", reflect.TypeOf((*MockVeth)(nil).ErrorLinkNotFound))
-}
-
 // Setup mocks base method.
 func (m *MockVeth) Setup(arg0 string, arg1 int, arg2 ns.NetNS) (net.Interface, net.Interface, error) {
 	m.ctrl.T.Helper()

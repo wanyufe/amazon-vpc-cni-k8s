@@ -147,9 +147,9 @@ func mergeResult(result *current.Result, tmpResult *current.Result) {
 	}
 }
 
-func disableInterfaceIPv6(c *share.Context) error { //netns nswrapper.NS, nsPath, ifName string) error {
+func disableInterfaceIPv6(c *share.Context, ifName string) error {
 	return c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
-		var entry = "net/ipv6/conf/" + c.ArgsIfName + "/disable_ipv6"
+		var entry = "net/ipv6/conf/" + ifName + "/disable_ipv6"
 		if content, err := c.Procsys.Get(entry); err == nil {
 			if strings.TrimSpace(content) == "1" {
 				return nil
@@ -201,7 +201,7 @@ func CmdAddEgressV6(c *share.Context) (err error) { // ipt networkutils.Iptables
 	//  5. all containers IPv6 egress traffic share node primary interface through SNAT
 
 	// first disable IPv6 on container's primary interface (eth0)
-	err = disableInterfaceIPv6(c)
+	err = disableInterfaceIPv6(c, c.ArgsIfName)
 	if err != nil {
 		c.Log.Errorf("failed to disable IPv6 on container interface %s", c.ArgsIfName)
 		return err

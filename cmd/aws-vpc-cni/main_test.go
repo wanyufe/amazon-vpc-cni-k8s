@@ -13,8 +13,8 @@ const (
 	nodeIP      = "10.0.0.0"
 )
 
-var getPrimaryIPMock = func(isIPv4 bool) (string, error) {
-	if isIPv4 {
+var getPrimaryIPMock = func(ipv4 bool) (string, error) {
+	if ipv4 {
 		return "10.0.0.0", nil
 	}
 	return "2600::", nil

@@ -51,7 +51,7 @@ func main() {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	execContext := &share.Context{
+	context := &share.Context{
 		Procsys:    procsyswrapper.NewProcSys(),
 		Ns:         nswrapper.NewNS(),
 		NsPath:     args.Netns,
@@ -70,30 +70,30 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	execContext.Iptv4 = iptv4
-	execContext.Iptv6 = iptv6
+	context.Iptv4 = iptv4
+	context.Iptv6 = iptv6
 
-	execContext.NetConf, execContext.Log, err = share.LoadConf(args.StdinData)
+	context.NetConf, context.Log, err = share.LoadConf(args.StdinData)
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
 	}
-	if execContext.NetConf.PrevResult == nil {
-		execContext.Log.Debugf("must be called as a chained plugin")
+	if context.NetConf.PrevResult == nil {
+		context.Log.Debugf("must be called as a chained plugin")
 		return fmt.Errorf("must be called as a chained plugin")
 	}
 
-	execContext.Result, err = current.GetResult(execContext.NetConf.PrevResult)
+	context.Result, err = current.GetResult(context.NetConf.PrevResult)
 	if err != nil {
-		execContext.Log.Errorf("failed to get PrevResult: %v", err)
+		context.Log.Errorf("failed to get PrevResult: %v", err)
 		return err
 	}
 	// Convert MTU from string to int
-	execContext.Mtu, err = strconv.Atoi(execContext.NetConf.MTU)
+	context.Mtu, err = strconv.Atoi(context.NetConf.MTU)
 	if err != nil {
-		execContext.Log.Errorf("failed to parse MTU: %s, err: %v", execContext.NetConf.MTU, err)
+		context.Log.Errorf("failed to parse MTU: %s, err: %v", context.NetConf.MTU, err)
 		return err
 	}
-	return _cmdAdd(args, execContext)
+	return _cmdAdd(args, context)
 }
 
 func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
@@ -141,27 +141,24 @@ func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
 		return fmt.Errorf("IPAM plugin returned zero IPs")
 	}
 
-	// IPv6 egress
 	if isIPv6Egress {
+		// IPv6 egress
 		context.NetConf.IfName = share.EgressIPv6InterfaceName
-		return cni.CmdAddEgressV6(context)
+		err = cni.CmdAddEgressV6(context)
+	} else {
+		// IPv4 egress
+		context.NetConf.IfName = share.EgressIPv4InterfaceName
+		err = cni.CmdAddEgressV4(context)
 	}
-
-	// IPv4 egress
-	context.NetConf.IfName = share.EgressIPv4InterfaceName
-
-	return cni.CmdAddEgressV4(context)
+	return err
 }
 
 func cmdDel(args *skel.CmdArgs) (err error) {
 	context := &share.Context{
-		Procsys:    procsyswrapper.NewProcSys(),
-		Ns:         nswrapper.NewNS(),
-		NsPath:     args.Netns,
-		ArgsIfName: args.IfName,
-		Ipam:       ipamwrapper.NewIpam(),
-		Link:       netlinkwrapper.NewNetLink(),
-		Veth:       vethwrapper.NewSetupVeth(),
+		Ns:     nswrapper.NewNS(),
+		NsPath: args.Netns,
+		Ipam:   ipamwrapper.NewIpam(),
+		Link:   netlinkwrapper.NewNetLink(),
 	}
 
 	iptv4, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
@@ -208,12 +205,14 @@ func _cmdDel(args *skel.CmdArgs, context *share.Context) (err error) {
 	context.Chain = utils.MustFormatChainNameWithPrefix(context.NetConf.Name, args.ContainerID, chainPrefix)
 	context.Comment = utils.FormatComment(context.NetConf.Name, args.ContainerID)
 
-	// IPv6 egress
 	if isIPv6Egress {
+		// IPv6 egress
 		context.NetConf.IfName = share.EgressIPv6InterfaceName
-		return cni.CmdDelEgressV6(context)
+		err = cni.CmdDelEgressV6(context)
+	} else {
+		// IPv4 egress
+		context.NetConf.IfName = share.EgressIPv4InterfaceName
+		err = cni.CmdDelEgressV4(context)
 	}
-	// IPv4 egress
-	context.NetConf.IfName = share.EgressIPv4InterfaceName
-	return cni.CmdDelEgressV4(context)
+	return err
 }

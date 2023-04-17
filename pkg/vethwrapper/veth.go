@@ -23,7 +23,6 @@ import (
 
 type Veth interface {
 	Setup(contVethName string, mtu int, hostNS ns.NetNS) (net.Interface, net.Interface, error)
-	ErrorLinkNotFound() error
 }
 
 type veth struct{}
@@ -34,8 +33,4 @@ func NewSetupVeth() Veth {
 }
 func (v *veth) Setup(contVethName string, mtu int, hostNS ns.NetNS) (net.Interface, net.Interface, error) {
 	return ip.SetupVeth(contVethName, mtu, hostNS)
-}
-
-func (v *veth) ErrorLinkNotFound() error {
-	return ip.ErrLinkNotFound
 }

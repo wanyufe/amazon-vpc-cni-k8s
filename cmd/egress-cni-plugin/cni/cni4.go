@@ -27,7 +27,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/cniutils"
 )
 
 // The bulk of this file is mostly based on standard ptp CNI plugin.
@@ -195,44 +195,10 @@ func setupHostVeth(vethName string, c *share.Context) error {
 	return nil
 }
 
-func enableIpForwarding(procSys procsyswrapper.ProcSys, ips []*current.IPConfig) error {
-	v4 := false
-	v6 := false
-
-	for _, ip := range ips {
-		if ip.Version == "4" && !v4 {
-			valueV4, err := procSys.Get(ipv4ForwardKey)
-			if err != nil {
-				return err
-			}
-			if valueV4 != "1" {
-				err = procSys.Set(ipv4ForwardKey, "1")
-				if err != nil {
-					return err
-				}
-			}
-			v4 = true
-		} else if ip.Version == "6" && !v6 {
-			valueV6, err := procSys.Get(ipv6ForwardKey)
-			if err != nil {
-				return err
-			}
-			if valueV6 != "1" {
-				err = procSys.Set(ipv6ForwardKey, "1")
-				if err != nil {
-					return err
-				}
-			}
-			v6 = true
-		}
-	}
-	return nil
-}
-
 // CmdAddEgressV4 exec necessary settings to support IPv4 egress traffic in EKS IPv6 cluster
 func CmdAddEgressV4(c *share.Context) error {
 
-	if err := enableIpForwarding(c.Procsys, c.TmpResult.IPs); err != nil {
+	if err := cniutils.EnableIpForwarding(c.Procsys, c.TmpResult.IPs); err != nil {
 		return fmt.Errorf("could not enable IP forwarding: %v", err)
 	}
 

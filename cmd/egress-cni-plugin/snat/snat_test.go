@@ -22,7 +22,7 @@ const (
 
 var (
 	containerIpv6 = net.ParseIP("fd00::10")
-	nodeIp        = net.ParseIP("2600::")
+	nodeIP        = net.ParseIP("2600::")
 )
 
 var _ = Describe("Snat", func() {
@@ -64,7 +64,7 @@ var _ = Describe("Snat", func() {
 
 			setupAddExpect(ipt, &actualChain, &actualRule)
 
-			err := snat.Add(ipt, nodeIp, containerIpv6, ipv6MulticastRange, chain, comment, rndSNAT)
+			err := snat.Add(ipt, nodeIP, containerIpv6, ipv6MulticastRange, chain, comment, rndSNAT)
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 

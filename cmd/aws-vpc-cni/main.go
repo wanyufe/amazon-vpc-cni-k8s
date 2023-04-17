@@ -206,56 +206,34 @@ func waitForInit() error {
 	}
 }
 
-func getPrimaryIP(isIPv4 bool) (string, error) {
+func getPrimaryIP(ipv4 bool) (string, error) {
 	var hostIP string
 	var err error
 	var key string
 
-	if isIPv4 {
+	if ipv4 {
 		key = "local-ipv4"
 	} else {
 		key = "ipv6"
 	}
 	hostIP, err = cniutils.GetNodeMetadata(key)
 	if err != nil {
-		if isIPv4 {
-			log.WithError(err).Fatalf("aws-vpc-cni failed")
+		if ipv4 {
+			log.WithError(err).Fatalf("failed to rtrieve local-ipv4 address in imds metadata")
 		} else {
-			log.WithError(err).Debugf("failed to retrieve IPv6 address in imds metadata")
+			log.WithError(err).Debugf("failed to retrieve ipv6 address in imds metadata")
 		}
 		return "", err
 	}
 	return hostIP, nil
 }
 
-//func getNodePrimaryV4Address() (string, error) {
-//	var hostIP string
-//	var err error
-//	hostIP, err = cniutils.GetNodeMetadata("local-ipv4")
-//	if err != nil {
-//		log.WithError(err).Fatalf("aws-vpc-cni failed")
-//		return "", err
-//	}
-//	return hostIP, nil
-//}
-//
-//func getNodePrimaryV6Address() (string, error) {
-//	var hostIP string
-//	var err error
-//	hostIP, err = cniutils.GetNodeMetadata("ipv6")
-//	if err != nil {
-//		log.WithError(err).Fatalf("aws-vpc-cni failed")
-//		return "", err
-//	}
-//	return hostIP, nil
-//}
-
 func isValidJSON(inFile string) error {
 	var result map[string]interface{}
 	return json.Unmarshal([]byte(inFile), &result)
 }
 
-func generateJSON(jsonFile string, outFile string, getPrimaryIP func(isIPv4 bool) (string, error)) error {
+func generateJSON(jsonFile string, outFile string, getPrimaryIP func(ipv4 bool) (string, error)) error {
 	byteValue, err := os.ReadFile(jsonFile)
 	if err != nil {
 		return err
