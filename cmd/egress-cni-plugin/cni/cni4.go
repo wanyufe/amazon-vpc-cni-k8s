@@ -51,8 +51,6 @@ import (
 
 const (
 	ipv4MulticastRange = "224.0.0.0/4"
-	ipv4ForwardKey     = "net/ipv4/ip_forward"
-	ipv6ForwardKey     = "net/ipv6/conf/all/forwarding"
 )
 
 func setupContainerVeth(c *share.Context) (*current.Interface, *current.Interface, error) {

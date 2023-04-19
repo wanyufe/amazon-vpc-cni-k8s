@@ -19,6 +19,7 @@ import (
 	"strconv"
 
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper"
 
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper"
@@ -61,11 +62,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 		Veth:       vethwrapper.NewSetupVeth(),
 	}
 
-	iptv4, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
+	iptv4, err := iptableswrapper.NewIptables(iptables.ProtocolIPv4)
 	if err != nil {
 		return err
 	}
-	iptv6, err := iptables.NewWithProtocol(iptables.ProtocolIPv6)
+	iptv6, err := iptableswrapper.NewIptables(iptables.ProtocolIPv6)
 	if err != nil {
 		return err
 	}
@@ -73,6 +74,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 	context.Iptv4 = iptv4
 	context.Iptv6 = iptv6
 
+	return _cmdAdd(args, context)
+}
+
+func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
 	context.NetConf, context.Log, err = share.LoadConf(args.StdinData)
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
@@ -93,16 +98,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 		context.Log.Errorf("failed to parse MTU: %s, err: %v", context.NetConf.MTU, err)
 		return err
 	}
-	return _cmdAdd(args, context)
-}
 
-func _cmdAdd(args *skel.CmdArgs, context *share.Context) (err error) {
 	context.Log.Debugf("Received an ADD request for: conf=%v; Plugin enabled=%s", context.NetConf, context.NetConf.Enabled)
 	// We will not be vending out this as a separate plugin by itself, and it is only intended to be used as a
 	// chained plugin to VPC CNI. We only need this plugin to kick in if egress is enabled in VPC CNI. So, the
 	// value of an env variable in VPC CNI determines whether this plugin should be enabled and this is an attempt to
 	// pass through the variable configured in VPC CNI.
-	if context.NetConf.Enabled == "false" {
+	if context.NetConf.Enabled != "true" {
 		return types.PrintResult(context.Result, context.NetConf.CNIVersion)
 	}
 
@@ -173,15 +175,14 @@ func cmdDel(args *skel.CmdArgs) (err error) {
 	context.Iptv4 = iptv4
 	context.Iptv6 = iptv6
 
-	context.NetConf, context.Log, err = share.LoadConf(args.StdinData)
-	if err != nil {
-		return fmt.Errorf("failed to parse config: %v", err)
-	}
-
 	return _cmdDel(args, context)
 }
 
 func _cmdDel(args *skel.CmdArgs, context *share.Context) (err error) {
+	context.NetConf, context.Log, err = share.LoadConf(args.StdinData)
+	if err != nil {
+		return fmt.Errorf("failed to parse config: %v", err)
+	}
 
 	// We only need this plugin to kick in if egress is enabled
 	if context.NetConf.Enabled != "true" {

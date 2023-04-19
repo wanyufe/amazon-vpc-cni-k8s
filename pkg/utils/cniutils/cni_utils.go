@@ -15,6 +15,11 @@ import (
 	"github.com/aws/amazon-vpc-cni-k8s/utils/imds"
 )
 
+const (
+	ipv4ForwardKey = "net/ipv4/ip_forward"
+	ipv6ForwardKey = "net/ipv6/conf/all/forwarding"
+)
+
 func FindInterfaceByName(ifaceList []*current.Interface, ifaceName string) (ifaceIndex int, iface *current.Interface, found bool) {
 	for ifaceIndex, iface := range ifaceList {
 		if iface.Name == ifaceName {

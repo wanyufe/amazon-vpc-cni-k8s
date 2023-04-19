@@ -1,15 +1,27 @@
-package snat_test
+// Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"). You may
+// not use this file except in compliance with the License. A copy of the
+// License is located at
+//
+//     http://aws.amazon.com/apache2.0/
+//
+// or in the "license" file accompanying this file. This file is distributed
+// on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+// express or implied. See the License for the specific language governing
+// permissions and limitations under the License.
+
+package snat
 
 import (
 	"net"
+	"testing"
 
 	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
-	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
+	mock_iptables "github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper/mocks"
 )
 
 const (
@@ -25,98 +37,63 @@ var (
 	nodeIP        = net.ParseIP("2600::")
 )
 
-var _ = Describe("Snat", func() {
-	var ctrl *gomock.Controller
-	var ipt *mock_networkutils.MockIptablesIface
+func TestAdd(t *testing.T) {
+	ipt := mock_iptables.NewMockIptablesIface(gomock.NewController(t))
 
-	var expectChain []string
-	var actualChain []string
+	expectChain := []string{chain}
+	actualChain := []string{}
 
-	var expectRule []string
-	var actualRule []string
+	expectRule := []string{
+		"nat CNI-E6 -d ff00::/8 -j ACCEPT -m comment --comment unit-test-comment",
+		"nat CNI-E6 -j SNAT --to-source 2600:: -m comment --comment unit-test-comment --random",
+		"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment",
+	}
+	actualRule := []string{}
 
-	var expectClearChain []string
-	var actualClearChain []string
+	setupAddExpect(ipt, &actualChain, &actualRule)
 
-	var expectDeleteChain []string
-	var actualDeleteChain []string
+	err := Add(ipt, nodeIP, containerIpv6, ipv6MulticastRange, chain, comment, rndSNAT)
+	assert.Nil(t, err)
 
-	BeforeEach(func() {
-		ctrl = gomock.NewController(GinkgoT())
-	})
-	AfterEach(func() {
-		ctrl.Finish()
-	})
+	assert.EqualValuesf(t, expectChain, actualChain, "iptables chain is expected to be created")
 
-	Context("when container add/create", func() {
-		BeforeEach(func() {
-			ipt = mock_networkutils.NewMockIptablesIface(ctrl)
+	assert.EqualValuesf(t, expectRule, actualRule, "iptables rules are expected to be created")
+}
 
-			expectChain = []string{chain}
-			actualChain = []string{}
+func TestDel(t *testing.T) {
+	ipt := mock_iptables.NewMockIptablesIface(gomock.NewController(t))
 
-			expectRule = []string{
-				"nat CNI-E6 -d ff00::/8 -j ACCEPT -m comment --comment unit-test-comment",
-				"nat CNI-E6 -j SNAT --to-source 2600:: -m comment --comment unit-test-comment --random",
-				"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment",
-			}
-			actualRule = []string{}
+	expectClearChain := []string{chain}
+	actualClearChain := []string{}
 
-			setupAddExpect(ipt, &actualChain, &actualRule)
+	expectDeleteChain := []string{chain}
+	actualDeleteChain := []string{}
 
-			err := snat.Add(ipt, nodeIP, containerIpv6, ipv6MulticastRange, chain, comment, rndSNAT)
-			Ω(err).ShouldNot(HaveOccurred())
-		})
+	expectRule := []string{"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment"}
+	actualRule := []string{}
 
-		It("create iptables chain", func() {
-			Ω(actualChain).Should(Equal(expectChain))
-		})
+	setupDelExpect(ipt, &actualClearChain, &actualDeleteChain, &actualRule)
 
-		It("create iptables rule", func() {
-			Ω(actualRule).Should(Equal(expectRule))
-		})
-	})
+	err := Del(ipt, containerIpv6, chain, comment)
+	assert.Nil(t, err)
 
-	Context("when container delete/remove", func() {
-		BeforeEach(func() {
-			ipt = mock_networkutils.NewMockIptablesIface(ctrl)
+	assert.EqualValuesf(t, expectClearChain, actualClearChain, "iptables chain is expected to be cleared")
 
-			expectClearChain = []string{chain}
-			actualClearChain = []string{}
+	assert.EqualValuesf(t, expectDeleteChain, actualDeleteChain, "iptables chain is expected to be removed")
 
-			expectDeleteChain = []string{chain}
-			actualDeleteChain = []string{}
+	assert.EqualValuesf(t, expectRule, actualRule, "iptables rule is expected to be removed")
 
-			expectRule = []string{"nat POSTROUTING -s fd00::10 -j CNI-E6 -m comment --comment unit-test-comment"}
-			actualRule = []string{}
-
-			setupDelExpect(ipt, &actualClearChain, &actualDeleteChain, &actualRule)
-
-			err := snat.Del(ipt, containerIpv6, chain, comment)
-			Ω(err).ShouldNot(HaveOccurred())
-		})
-
-		It("clear/delete iptables chain", func() {
-			Ω(actualClearChain).Should(Equal(expectClearChain))
-			Ω(actualDeleteChain).Should(Equal(expectDeleteChain))
-		})
-
-		It("delete iptables rule", func() {
-			Ω(actualRule).Should(Equal(expectRule))
-		})
-	})
-})
-
-func setupAddExpect(ipt networkutils.IptablesIface, actualNewChain, actualNewRule *[]string) {
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().ListChains("nat").Return(
+}
+func setupAddExpect(ipt iptableswrapper.IptablesIface, actualNewChain, actualNewRule *[]string) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().ListChains("nat").Return(
 		[]string{"POSTROUTING"}, nil)
 
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().NewChain("nat", gomock.Any()).Do(func(_, arg1 interface{}) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().NewChain("nat", gomock.Any()).Do(func(_, arg1 interface{}) {
 		chain := arg1.(string)
 		*actualNewChain = append(*actualNewChain, chain)
 	}).Return(nil)
 
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
 		rule := arg1.(string) + " " + arg2.(string)
 		for _, arg := range arg3 {
 			rule += " " + arg.(string)
@@ -125,16 +102,16 @@ func setupAddExpect(ipt networkutils.IptablesIface, actualNewChain, actualNewRul
 	}).Return(nil).AnyTimes()
 }
 
-func setupDelExpect(ipt networkutils.IptablesIface, actualClearChain, actualDeleteChain, actualRule *[]string) {
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().ClearChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
+func setupDelExpect(ipt iptableswrapper.IptablesIface, actualClearChain, actualDeleteChain, actualRule *[]string) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().ClearChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
 		*actualClearChain = append(*actualClearChain, arg2.(string))
 	}).Return(nil)
 
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().DeleteChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().DeleteChain("nat", gomock.Any()).Do(func(_, arg2 interface{}) {
 		*actualDeleteChain = append(*actualDeleteChain, arg2.(string))
 	}).Return(nil)
 
-	ipt.(*mock_networkutils.MockIptablesIface).EXPECT().Delete("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
+	ipt.(*mock_iptables.MockIptablesIface).EXPECT().Delete("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
 		rule := arg1.(string) + " " + arg2.(string)
 		for _, arg := range arg3 {
 			rule += " " + arg.(string)

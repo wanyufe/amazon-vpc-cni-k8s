@@ -17,8 +17,8 @@ import (
 	"github.com/containernetworking/cni/pkg/types/current"
 
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
@@ -34,8 +34,8 @@ type Context struct {
 	NsPath     string
 	ArgsIfName string
 	Veth       vethwrapper.Veth
-	Iptv4      networkutils.IptablesIface
-	Iptv6      networkutils.IptablesIface
+	Iptv4      iptableswrapper.IptablesIface
+	Iptv6      iptableswrapper.IptablesIface
 
 	NetConf   *NetConf
 	Result    *current.Result

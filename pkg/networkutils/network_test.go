@@ -14,9 +14,12 @@
 package networkutils
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,10 +32,10 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
 	mocks_ip "github.com/aws/amazon-vpc-cni-k8s/pkg/ipwrapper/mocks"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper/mock_netlink"
 	mock_netlinkwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper/mocks"
-	mock_iptables "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
 	mock_nswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper/mocks"
 )
 
@@ -58,13 +61,13 @@ func setup(t *testing.T) (*gomock.Controller,
 	*mock_netlinkwrapper.MockNetLink,
 	*mocks_ip.MockIP,
 	*mock_nswrapper.MockNS,
-	*mock_iptables.MockIptables) {
+	*mockIptables) {
 	ctrl := gomock.NewController(t)
 	return ctrl,
 		mock_netlinkwrapper.NewMockNetLink(ctrl),
 		mocks_ip.NewMockIP(ctrl),
 		mock_nswrapper.NewMockNS(ctrl),
-		mock_iptables.NewMockIptables()
+		newMockIptables()
 }
 
 func TestSetupENINetwork(t *testing.T) {
@@ -150,7 +153,7 @@ func TestSetupHostNetworkNodePortDisabledAndSNATDisabled(t *testing.T) {
 		mtu:                    testMTU,
 		netLink:                mockNetLink,
 		ns:                     mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -231,14 +234,14 @@ func TestSetupHostNetworkNodePortEnabledAndSNATDisabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
 
-	log.Debugf("mockIPtables.Dp state: ", mockIptables.DataplaneState)
+	log.Debugf("mockIPtables.Dp state: ", mockIptables.dataplaneState)
 	setupNetLinkMocks(ctrl, mockNetLink)
-	log.Debugf("After: mockIPtables.Dp state: ", mockIptables.DataplaneState)
+	log.Debugf("After: mockIPtables.Dp state: ", mockIptables.dataplaneState)
 
 	var vpcCIDRs []string
 	err := ln.SetupHostNetwork(vpcCIDRs, loopback, &testENINetIP, false, true, false)
@@ -263,7 +266,7 @@ func TestSetupHostNetworkNodePortEnabledAndSNATDisabled(t *testing.T) {
 				},
 			},
 		},
-	}, mockIptables.DataplaneState)
+	}, mockIptables.dataplaneState)
 }
 
 func TestSetupHostNetworkNodePortDisabledAndSNATEnabled(t *testing.T) {
@@ -279,14 +282,14 @@ func TestSetupHostNetworkNodePortDisabledAndSNATEnabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
 
-	log.Debugf("mockIPtables.Dp state: ", mockIptables.DataplaneState)
+	log.Debugf("mockIPtables.Dp state: ", mockIptables.dataplaneState)
 	setupNetLinkMocks(ctrl, mockNetLink)
-	log.Debugf("After: mockIPtables.Dp state: ", mockIptables.DataplaneState)
+	log.Debugf("After: mockIPtables.Dp state: ", mockIptables.dataplaneState)
 
 	var vpcCIDRs []string
 
@@ -311,7 +314,7 @@ func TestSetupHostNetworkNodePortDisabledAndSNATEnabled(t *testing.T) {
 				},
 			},
 		},
-	}, mockIptables.DataplaneState)
+	}, mockIptables.dataplaneState)
 }
 
 func TestLoadMTUFromEnvTooLow(t *testing.T) {
@@ -351,7 +354,7 @@ func TestSetupHostNetworkWithExcludeSNATCIDRs(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -386,7 +389,7 @@ func TestSetupHostNetworkWithExcludeSNATCIDRs(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "vlan+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 
 func TestSetupHostNetworkCleansUpStaleSNATRules(t *testing.T) {
@@ -403,7 +406,7 @@ func TestSetupHostNetworkCleansUpStaleSNATRules(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -454,7 +457,7 @@ func TestSetupHostNetworkCleansUpStaleSNATRules(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "vlan+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 
 func TestSetupHostNetworkWithDifferentVethPrefix(t *testing.T) {
@@ -471,7 +474,7 @@ func TestSetupHostNetworkWithDifferentVethPrefix(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -522,7 +525,7 @@ func TestSetupHostNetworkWithDifferentVethPrefix(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "vlan+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 func TestSetupHostNetworkExternalNATCleanupConnmark(t *testing.T) {
 	ctrl, mockNetLink, _, mockNS, mockIptables := setup(t)
@@ -538,7 +541,7 @@ func TestSetupHostNetworkExternalNATCleanupConnmark(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -586,7 +589,7 @@ func TestSetupHostNetworkExternalNATCleanupConnmark(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "vlan+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 func TestSetupHostNetworkExcludedSNATCIDRsIdempotent(t *testing.T) {
 	ctrl, mockNetLink, _, mockNS, mockIptables := setup(t)
@@ -602,7 +605,7 @@ func TestSetupHostNetworkExcludedSNATCIDRsIdempotent(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -653,7 +656,7 @@ func TestSetupHostNetworkExcludedSNATCIDRsIdempotent(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "vlan+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 
 func TestUpdateHostIptablesRules(t *testing.T) {
@@ -669,7 +672,7 @@ func TestUpdateHostIptablesRules(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -713,7 +716,7 @@ func TestUpdateHostIptablesRules(t *testing.T) {
 					{"-m", "comment", "--comment", "AWS, primary ENI", "-i", "veth+", "-j", "CONNMARK", "--restore-mark", "--mask", "0x80"},
 				},
 			},
-		}, mockIptables.DataplaneState)
+		}, mockIptables.dataplaneState)
 }
 func TestSetupHostNetworkMultipleCIDRs(t *testing.T) {
 	ctrl, mockNetLink, _, mockNS, mockIptables := setup(t)
@@ -728,7 +731,7 @@ func TestSetupHostNetworkMultipleCIDRs(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -753,7 +756,7 @@ func TestSetupHostNetworkWithIPv6Enabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -774,7 +777,7 @@ func TestSetupHostNetworkWithIPv6Enabled(t *testing.T) {
 				},
 			},
 		},
-	}, mockIptables.DataplaneState)
+	}, mockIptables.dataplaneState)
 }
 
 func TestIncrementIPv4Addr(t *testing.T) {
@@ -816,7 +819,7 @@ func TestSetupHostNetworkIgnoringRpFilterUpdate(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -841,7 +844,7 @@ func TestSetupHostNetworkUpdateLocalRule(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -869,7 +872,7 @@ func TestSetupHostNetworkDeleteOldConnmarkRuleForNonVpcOutboundTraffic(t *testin
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (IptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -1041,4 +1044,112 @@ func setupVethNetLinkMocks(mockNetLink *mock_netlinkwrapper.MockNetLink) {
 	mockNetLink.EXPECT().NewRule().Return(&localRule)
 	mockNetLink.EXPECT().RuleAdd(&localRule)
 	mockNetLink.EXPECT().RuleDel(&localRule)
+}
+
+type mockIptables struct {
+	// dataplaneState is a map from table name to chain name to slice of rulespecs
+	dataplaneState map[string]map[string][][]string
+}
+
+func newMockIptables() *mockIptables {
+	return &mockIptables{dataplaneState: map[string]map[string][][]string{}}
+}
+
+func (ipt *mockIptables) Exists(table, chainName string, rulespec ...string) (bool, error) {
+	chain := ipt.dataplaneState[table][chainName]
+	for _, r := range chain {
+		if reflect.DeepEqual(rulespec, r) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (ipt *mockIptables) Insert(table, chain string, pos int, rulespec ...string) error {
+	if ipt.dataplaneState[table] == nil {
+		ipt.dataplaneState[table] = map[string][][]string{}
+	}
+	ipt.dataplaneState[table][chain] = append(ipt.dataplaneState[table][chain], rulespec)
+	return nil
+}
+
+func (ipt *mockIptables) Append(table, chain string, rulespec ...string) error {
+	if ipt.dataplaneState[table] == nil {
+		ipt.dataplaneState[table] = map[string][][]string{}
+	}
+	ipt.dataplaneState[table][chain] = append(ipt.dataplaneState[table][chain], rulespec)
+	return nil
+}
+
+func (ipt *mockIptables) AppendUnique(table, chain string, rulespec ...string) error {
+	exists, err := ipt.Exists(table, chain, rulespec...)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return ipt.Append(table, chain, rulespec...)
+	}
+
+	return nil
+}
+
+func (ipt *mockIptables) Delete(table, chainName string, rulespec ...string) error {
+	chain := ipt.dataplaneState[table][chainName]
+	updatedChain := chain[:0]
+	found := false
+	for _, r := range chain {
+		if !found && reflect.DeepEqual(rulespec, r) {
+			found = true
+			continue
+		}
+		updatedChain = append(updatedChain, r)
+	}
+	if !found {
+		return errors.New("not found")
+	}
+	ipt.dataplaneState[table][chainName] = updatedChain
+	return nil
+}
+
+func (ipt *mockIptables) List(table, chain string) ([]string, error) {
+	var chains []string
+	chainContents := ipt.dataplaneState[table][chain]
+	for _, ruleSpec := range chainContents {
+		sanitizedRuleSpec := []string{"-A", chain}
+		for _, item := range ruleSpec {
+			if strings.Contains(item, " ") {
+				item = fmt.Sprintf("%q", item)
+			}
+			sanitizedRuleSpec = append(sanitizedRuleSpec, item)
+		}
+		chains = append(chains, strings.Join(sanitizedRuleSpec, " "))
+	}
+	return chains, nil
+
+}
+
+func (ipt *mockIptables) NewChain(table, chain string) error {
+	return nil
+}
+
+func (ipt *mockIptables) ClearChain(table, chain string) error {
+	return nil
+}
+
+func (ipt *mockIptables) DeleteChain(table, chain string) error {
+	return nil
+}
+
+func (ipt *mockIptables) ListChains(table string) ([]string, error) {
+	var chains []string
+	for chain := range ipt.dataplaneState[table] {
+		chains = append(chains, chain)
+	}
+	return chains, nil
+}
+
+func (ipt *mockIptables) HasRandomFully() bool {
+	// TODO: Work out how to write a test case for this
+	return true
 }

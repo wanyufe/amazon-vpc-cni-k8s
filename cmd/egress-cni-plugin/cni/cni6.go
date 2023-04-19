@@ -32,10 +32,10 @@ import (
 	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/snat"
 )
 
-// Time duration CNI waits for an IPv6 address assigned to an interface
-// to move to stable state before error'ing out.
 const (
-	WaitInterval       = 50 * time.Millisecond
+	WaitInterval = 50 * time.Millisecond
+	// DadTimeout Time duration CNI waits for an IPv6 address assigned to an interface
+	// to move to stable state before error'ing out.
 	DadTimeout         = 10 * time.Second
 	ipv6MulticastRange = "ff00::/8"
 )
@@ -159,9 +159,6 @@ func disableInterfaceIPv6(c *share.Context, ifName string) error {
 	})
 }
 
-//	containerIPv6, err := cniutils.GetIPsByInterfaceName(context.Link, context.Ns, context.NsPath, containerInterface.Name, func(ip net.IP) bool {
-//			return ip.To4() == nil && ip.IsGlobalUnicast()
-//		})
 func getContainerIpv6GlobalAddrs(c *share.Context, ifName string) (containerIPv6 []net.IP, err error) {
 	if c.NsPath != "" {
 		err = c.Ns.WithNetNSPath(c.NsPath, func(hostNS ns.NetNS) error {
@@ -188,7 +185,7 @@ func getContainerIpv6GlobalAddrs(c *share.Context, ifName string) (containerIPv6
 }
 
 // CmdAddEgressV6 exec necessary settings to support IPv6 egress traffic in EKS IPv4 cluster
-func CmdAddEgressV6(c *share.Context) (err error) { // ipt networkutils.IptablesIface, netns nswrapper.NS, nsPath string, ipam ipamwrapper.Ipam,
+func CmdAddEgressV6(c *share.Context) (err error) {
 	//link netlinkwrapper.NetLink, veth vethwrapper.Veth, netConf *share.NetConf, result, tmpResult *current.Result,
 	//mtu int, argsIfName, chain, comment string, log logger.Logger) error {
 	// per best practice, a new veth pair is created between container ns and node ns

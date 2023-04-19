@@ -1069,3 +1069,175 @@
 {"level":"info","ts":"2023-04-12T21:31:30.299Z","caller":"cni/cni4_test.go:165","msg":"Constructed new logger instance"}
 {"level":"debug","ts":"2023-04-12T21:31:30.300Z","caller":"cni/cni4_test.go:121","msg":"Node IP: 192.168.0.23"}
 {"level":"debug","ts":"2023-04-12T21:31:30.300Z","caller":"cni/cni4_test.go:121","msg":"Interface Name: 0xc000133dd0; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T17:32:01.409Z","caller":"cni/cni4_test.go:120","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-17T17:40:19.745Z","caller":"cni/cni4_test.go:316","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-17T17:52:31.614Z","caller":"cni/cni4_test.go:321","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-17T17:56:58.478Z","caller":"cni/cni4_test.go:327","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T17:56:58.479Z","caller":"cni/cni4_test.go:99","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T17:57:11.562Z","caller":"cni/cni4_test.go:128","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-17T17:57:49.128Z","caller":"cni/cni4_test.go:128","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T17:57:49.129Z","caller":"cni/cni4_test.go:69","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T17:57:49.129Z","caller":"cni/cni4_test.go:69","msg":"Interface Name: 0xc000020870; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T17:59:46.534Z","caller":"cni/cni4_test.go:128","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T17:59:46.535Z","caller":"cni/cni4_test.go:69","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T17:59:46.535Z","caller":"cni/cni4_test.go:69","msg":"Interface Name: 0xc0000ae760; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:02:15.176Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:02:15.177Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:02:15.177Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc000020870; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:03:05.401Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:05.401Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:03:05.401Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc000410630; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:03:05.401Z","caller":"cni/cni4_test.go:328","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:05.402Z","caller":"cni/cni4_test.go:100","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T18:03:19.320Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:19.321Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:03:19.321Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc000021cf0; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:03:19.321Z","caller":"cni/cni4_test.go:328","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:19.322Z","caller":"cni/cni4_test.go:100","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T18:03:41.261Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:41.261Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:03:41.261Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc00038a670; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:03:41.262Z","caller":"cni/cni4_test.go:328","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:03:41.262Z","caller":"cni/cni4_test.go:100","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T18:04:08.813Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:04:08.814Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:04:08.814Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc0000b3bb0; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:04:08.814Z","caller":"cni/cni4_test.go:328","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:04:08.814Z","caller":"cni/cni4_test.go:100","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T18:04:18.559Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:04:23.872Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:04:23.873Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc0001d0770; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:05:53.841Z","caller":"cni/cni4_test.go:129","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:05:53.841Z","caller":"cni/cni4_test.go:70","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-17T18:05:53.841Z","caller":"cni/cni4_test.go:70","msg":"Interface Name: 0xc0000a2660; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-17T18:05:53.842Z","caller":"cni/cni4_test.go:328","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:05:53.842Z","caller":"cni/cni4_test.go:100","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-17T18:19:06.412Z","caller":"cni/cni6_test.go:115","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:19:06.413Z","caller":"cni/cni6_test.go:64","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-17T18:19:06.413Z","caller":"cni/cni6_test.go:64","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:06.413Z","caller":"cni/cni6_test.go:64","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:06.413Z","caller":"cni/cni6_test.go:64","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:06.413Z","caller":"cni/cni6_test.go:64","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc000021540 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc000021818 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:115","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:64","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:64","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:64","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:64","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-17T18:19:15.600Z","caller":"cni/cni6_test.go:64","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc0000214b0 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc000021788 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-17T18:19:15.601Z","caller":"cni/cni6_test.go:337","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T18:19:15.601Z","caller":"cni/cni6_test.go:266","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-17T18:19:15.601Z","caller":"cni/cni6_test.go:88","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-17T22:04:22.914Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T22:04:22.915Z","caller":"share/test_utils.go:211","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-17T22:04:22.915Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-17T22:04:34.338Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T22:04:34.338Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-17T22:04:34.338Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-17T22:04:34.338Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-17T22:04:34.339Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-17T22:04:34.339Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc0000b3380 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc0000b3658 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-17T22:04:34.339Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-17T22:04:34.339Z","caller":"share/test_utils.go:211","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-17T22:04:34.339Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-19T00:22:47.369Z","caller":"cni/cni4_test.go:126","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:22:47.370Z","caller":"cni/cni4_test.go:67","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:22:47.370Z","caller":"cni/cni4_test.go:67","msg":"Interface Name: 0xc000021358; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:22:47.370Z","caller":"cni/cni4_test.go:325","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:22:47.370Z","caller":"cni/cni4_test.go:97","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T00:23:04.631Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:23:04.631Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc000021410 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc0000216e8 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"share/test_utils.go:211","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-19T00:23:04.632Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-19T00:29:38.227Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:29:38.228Z","caller":"cni/cni4_test.go:62","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:29:38.228Z","caller":"cni/cni4_test.go:62","msg":"Interface Name: 0xc0000b3228; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:29:38.228Z","caller":"cni/cni4_test.go:189","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:29:38.229Z","caller":"cni/cni4_test.go:92","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T00:29:44.608Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:29:44.608Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-19T00:29:44.608Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:29:44.608Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:29:44.608Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:29:44.609Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc000021410 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc0000216e8 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-19T00:29:44.609Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:29:44.609Z","caller":"share/test_utils.go:209","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-19T00:29:44.609Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-19T00:33:11.030Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:33:11.031Z","caller":"cni/cni4_test.go:62","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:33:11.031Z","caller":"cni/cni4_test.go:62","msg":"Interface Name: 0xc000021358; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:33:11.031Z","caller":"cni/cni4_test.go:189","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:33:11.031Z","caller":"cni/cni4_test.go:92","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T00:44:46.162Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:44:46.163Z","caller":"cni/cni4_test.go:62","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:44:46.163Z","caller":"cni/cni4_test.go:62","msg":"Interface Name: 0xc000021358; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:44:46.163Z","caller":"cni/cni4_test.go:189","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:44:46.163Z","caller":"cni/cni4_test.go:92","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T00:44:53.517Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:44:53.517Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-19T00:44:53.517Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:44:53.517Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:44:53.517Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:44:53.518Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc000021410 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc0000216e8 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-19T00:44:53.518Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:44:53.518Z","caller":"share/test_utils.go:209","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-19T00:44:53.518Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-19T00:45:17.014Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:45:17.015Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-19T00:45:17.015Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:45:29.593Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:45:29.594Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-19T00:45:29.594Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc00013b2e0 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc00013b620 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-19T00:45:29.594Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:45:29.594Z","caller":"share/test_utils.go:209","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-19T00:45:29.595Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}
+{"level":"info","ts":"2023-04-19T00:50:04.660Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:50:04.660Z","caller":"cni/cni4_test.go:62","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:50:04.660Z","caller":"cni/cni4_test.go:62","msg":"Interface Name: 0xc0000b3228; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:50:04.661Z","caller":"cni/cni4_test.go:189","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:50:04.661Z","caller":"cni/cni4_test.go:92","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T00:50:46.437Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:50:46.438Z","caller":"cni/cni4_test.go:62","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:50:46.439Z","caller":"cni/cni4_test.go:62","msg":"Interface Name: 0xc0000b3328; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:52:41.190Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:53:37.755Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:54:11.070Z","caller":"cni/cni4_test.go:121","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:55:05.851Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:55:52.129Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:56:26.973Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"info","ts":"2023-04-19T00:57:59.313Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:57:59.314Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:57:59.314Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc000021458; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:58:14.626Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:58:14.627Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:58:14.627Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc00012b328; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:58:35.521Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:58:35.522Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:58:35.522Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc0000b3328; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T00:58:38.532Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T00:58:38.532Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T00:58:38.532Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc00012b328; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T01:02:36.017Z","caller":"cni/cni4_test.go:122","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:02:36.017Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T01:02:36.017Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc000021458; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T01:06:20.160Z","caller":"cni/cni4_test.go:124","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:06:20.161Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T01:06:20.161Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc000021458; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T01:09:08.843Z","caller":"cni/cni4_test.go:126","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:09:08.844Z","caller":"cni/cni4_test.go:63","msg":"Node IP: 192.168.0.23"}
+{"level":"debug","ts":"2023-04-19T01:09:08.844Z","caller":"cni/cni4_test.go:63","msg":"Interface Name: 0xc00012b228; IP: {2600:1f16:35a:5701:e1:830b:1feb:5f13 ffffffffffffffff0000000000000000}"}
+{"level":"info","ts":"2023-04-19T01:09:08.844Z","caller":"cni/cni4_test.go:194","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:09:08.845Z","caller":"cni/cni4_test.go:97","msg":"DEL: SNAT setup, let's clean them up. Size of ipnets: 1"}
+{"level":"info","ts":"2023-04-19T01:09:16.183Z","caller":"cni/cni6_test.go:110","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:09:16.183Z","caller":"cni/cni6_test.go:59","msg":"veth pair created for container IPv6 egress traffic, container interface: v6if0 ,host interface: vethxxxx"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:59","msg":"container route set up successfully"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 route set up successfully"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:59","msg":"host IPv6 SNAT set up successfully"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:59","msg":"output result: {CNIVersion:0.4.0 Interfaces:[{Name:eni3a52ce78095 Mac: Sandbox:} {Name:eth0 Mac: Sandbox:/var/run/netns/testing} {Name:vethxxxx Mac:cb:b8:33:4c:88:4f Sandbox:} {Name:v6if0 Mac:cc:b8:33:4c:88:4f Sandbox:/var/run/netns/cni-xxxx}] IPs:[{Version:4 Interface:0xc000021410 Address:{IP:192.168.1.100 Mask:ffffff00} Gateway:<nil>} {Version:6 Interface:0xc0000216e8 Address:{IP:fd00::10 Mask:ff000000000000000000000000000000} Gateway:fd00::1}] Routes:[] DNS:{Nameservers:[] Domain: Search:[] Options:[]}}"}
+{"level":"info","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:178","msg":"Constructed new logger instance"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"share/test_utils.go:208","msg":"Successfully deleted veth v6if0 in container"}
+{"level":"debug","ts":"2023-04-19T01:09:16.184Z","caller":"cni/cni6_test.go:83","msg":"Successfully deleted SNAT chain/rule for container IPv6 egress traffic: fd00::10"}

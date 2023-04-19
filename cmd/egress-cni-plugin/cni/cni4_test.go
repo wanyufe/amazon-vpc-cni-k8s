@@ -11,147 +11,114 @@
 // express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package cni_test
+package cni
 
 import (
+	"fmt"
 	"net"
+	"testing"
 
 	"github.com/containernetworking/cni/pkg/types"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/cni"
-	"github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	. "github.com/aws/amazon-vpc-cni-k8s/cmd/egress-cni-plugin/share"
+	mock_iptables "github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper/mocks"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
-
-	"github.com/vishvananda/netlink"
 
 	mock_netlinkwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper/mocks"
 
 	mock_nswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/nswrapper/mocks"
 
 	"github.com/containernetworking/cni/pkg/types/current"
-	_ns "github.com/containernetworking/plugins/pkg/ns"
 	"github.com/golang/mock/gomock"
 
 	mock_ipamwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/ipamwrapper/mocks"
-	mock_networkutils "github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils/mocks"
 	mock_procsyswrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper/mocks"
 	mock_veth "github.com/aws/amazon-vpc-cni-k8s/pkg/vethwrapper/mocks"
 )
 
-var _ = Describe("cni4", func() {
-	var ctrl *gomock.Controller
-	var ipt *mock_networkutils.MockIptablesIface
-	var context share.Context
+func TestCmdAddEgressV4(t *testing.T) {
+	context := setupAddContextV4(gomock.NewController(t))
 
-	// add
-	var expectIptablesRules []string
+	expectIptablesRules := []string{
+		"nat CNI-E4 -d 224.0.0.0/4 -j ACCEPT -m comment --comment unit-test-comment",
+		"nat CNI-E4 -j SNAT --to-source 192.168.0.23 -m comment --comment unit-test-comment --random-fully",
+		"nat POSTROUTING -s 169.254.172.100 -j CNI-E4 -m comment --comment unit-test-comment"}
 	var actualIptablesRules []string
-	var expectRouteDel []string
+
+	expectRouteDel := []string{"route del: {Ifindex: 2 Dst: 169.254.172.0/22 Src: <nil> Gw: <nil> Flags: [] Table: 0}"}
 	var actualRouteDel []string
-	var expectRouteAdd []string
+
+	expectRouteAdd := []string{
+		"route add: {Ifindex: 2 Dst: 169.254.172.1/32 Src: 169.254.172.100 Gw: <nil> Flags: [] Table: 0}",
+		"route add: {Ifindex: 2 Dst: 169.254.172.0/22 Src: 169.254.172.100 Gw: 169.254.172.1 Flags: [] Table: 0}",
+		"route add: {Ifindex: 100 Dst: 169.254.172.100/32 Src: <nil> Gw: <nil> Flags: [] Table: 0}"}
 	var actualRouteAdd []string
 
-	// del
-	var expectLinkDel []string
-	var actualLinkDel []string
-	var expectIptablesDel []string
-	var actualIptablesDel []string
+	// setup the mock EXPECT
+	err := SetupAddExpectV4(context, &actualIptablesRules, &actualRouteAdd, &actualRouteDel)
+	assert.Nil(t, err)
 
-	BeforeEach(func() {
-		ctrl = gomock.NewController(GinkgoT())
-		ipt = mock_networkutils.NewMockIptablesIface(ctrl)
-	})
-	AfterEach(func() {
-		ctrl.Finish()
-	})
+	// run egress plugin ADD action
+	err = CmdAddEgressV4(&context)
+	assert.Nil(t, err)
 
-	Context("when container del/remove", func() {
-		BeforeEach(func() {
-			context = setupDelContextV4(ctrl, ipt)
+	// confirm all iptables chain/rule are created
+	assert.EqualValuesf(t, expectIptablesRules, actualIptablesRules, "expected iptables chain/rule are not created")
 
-			expectLinkDel = []string{"link del - name: v4if0"}
-			actualLinkDel = []string{}
+	// confirm automatically added route is removed
+	assert.EqualValuesf(t, expectRouteDel, actualRouteDel, "route are expected to removed")
 
-			expectIptablesDel = []string{
-				"nat POSTROUTING -s 169.254.172.100 -j CNI-E4 -m comment --comment unit-test-comment",
-				"clear chain nat CNI-E4",
-				"del chain nat CNI-E4"}
-			actualIptablesDel = []string{}
-			setupDelExpectV4(context, &actualLinkDel, &actualIptablesDel)
-			err := cni.CmdDelEgressV4(&context)
-			Ω(err).ShouldNot(HaveOccurred())
-		})
-		It("iptables chain and rules are removed", func() {
-			Ω(actualIptablesDel).Should(Equal(expectIptablesDel))
-		})
-		It("link removed in container", func() {
-			Ω(actualLinkDel).Should(Equal(expectLinkDel))
-		})
-		It("route removed in host", func() {
+	// confirm routes are added in container and node
+	assert.EqualValuesf(t, expectRouteAdd, actualRouteAdd, "route are expected to added")
 
-		})
-	})
+	// the unit test write some output string not ends with '\n' and this cause go runner unable to interpret that a test was run.
+	// Adding a newline, keeps a clean output
+	fmt.Println()
 
-	Context("when container add/create", func() {
-		BeforeEach(func() {
-			context = setupAddContextV4(ctrl, ipt)
-			expectIptablesRules = []string{
-				"nat CNI-E4 -d 224.0.0.0/4 -j ACCEPT -m comment --comment unit-test-comment",
-				"nat CNI-E4 -j SNAT --to-source 192.168.0.23 -m comment --comment unit-test-comment --random-fully",
-				"nat POSTROUTING -s 169.254.172.100 -j CNI-E4 -m comment --comment unit-test-comment"}
-			actualIptablesRules = []string{}
+}
 
-			expectRouteDel = []string{"169.254.172.0/22"}
-			actualRouteDel = []string{}
+func TestCmdDelEgressV4(t *testing.T) {
+	context := setupDelContextV4(gomock.NewController(t))
 
-			expectRouteAdd = []string{
-				"{Ifindex: 2 Dst: 169.254.172.0/22 Src: 169.254.172.100 Gw: 169.254.172.1 Flags: [] Table: 0}",
-				"{Ifindex: 100 Dst: 169.254.172.100/32 Src: <nil> Gw: <nil> Flags: [] Table: 0}"}
-			actualRouteAdd = []string{}
+	expectLinkDel := []string{"link del - name: v4if0"}
+	actualLinkDel := []string{}
 
-			setupAddExpectV4(context, &actualIptablesRules, &actualRouteAdd, &actualRouteDel)
-			err := cni.CmdAddEgressV4(&context)
-			Ω(err).ShouldNot(HaveOccurred())
-		})
+	expectIptablesDel := []string{
+		"nat POSTROUTING -s 169.254.172.100 -j CNI-E4 -m comment --comment unit-test-comment",
+		"clear chain nat CNI-E4",
+		"del chain nat CNI-E4"}
+	actualIptablesDel := []string{}
 
-		It("iptables chain and rules are added", func() {
-			Ω(len(actualIptablesRules)).Should(Equal(3))
-			for index, result := range actualIptablesRules {
-				Ω(result).Should(Equal(expectIptablesRules[index]))
-			}
-		})
-		It("autogenerated route needs to be deleted", func() {
-			Ω(len(actualRouteDel)).Should(Equal(len(expectRouteDel)))
-			for index, result := range actualRouteDel {
-				Ω(result).Should(Equal(expectRouteDel[index]))
-			}
-		})
-		It("route added in container and host", func() {
-			Ω(len(actualRouteAdd)).Should(Equal(len(expectRouteAdd)))
-			for index, result := range actualRouteAdd {
-				Ω(result).Should(Equal(expectRouteAdd[index]))
-			}
-		})
-	})
+	// run egress plugin DEL action
+	err := SetupDelExpectV4(context, &actualLinkDel, &actualIptablesDel)
+	assert.Nil(t, err)
 
-})
+	err = CmdDelEgressV4(&context)
+	assert.Nil(t, err)
 
-func setupAddContextV4(ctrl *gomock.Controller, ipt *mock_networkutils.MockIptablesIface) share.Context {
-	return share.Context{
+	// confirm added interface is removed
+	assert.EqualValuesf(t, expectLinkDel, actualLinkDel, "interface are expected to deleted")
+
+	// confirm iptables chain/rules are deleted
+	assert.EqualValuesf(t, expectIptablesDel, actualIptablesDel, "iptables chain/rules are expected to deleted")
+}
+
+func setupAddContextV4(ctrl *gomock.Controller) Context {
+	ipt := mock_iptables.NewMockIptablesIface(ctrl)
+	return Context{
 		Procsys: mock_procsyswrapper.NewMockProcSys(ctrl),
 		Ns:      mock_nswrapper.NewMockNS(ctrl),
 		NsPath:  "/var/run/netns/cni-xxxx",
 		Ipam:    mock_ipamwrapper.NewMockIpam(ctrl),
 		Link:    mock_netlinkwrapper.NewMockNetLink(ctrl),
 		Veth:    mock_veth.NewMockVeth(ctrl),
-		NetConf: &share.NetConf{
+		NetConf: &NetConf{
 			NetConf: types.NetConf{
 				CNIVersion: "0.4.0",
 			},
 			NodeIP:         net.ParseIP("192.168.0.23"),
-			IfName:         "v4if0",
+			IfName:         EgressIPv4InterfaceName,
 			MTU:            "9001",
 			PluginLogFile:  "plugin.log",
 			PluginLogLevel: "DEBUG",
@@ -204,145 +171,22 @@ func setupAddContextV4(ctrl *gomock.Controller, ipt *mock_networkutils.MockIptab
 	}
 }
 
-func setupAddExpectV4(c share.Context, actualIptablesRules, actualRouteAdd, actualRouteDel *[]string) {
-	nsParent, err := _ns.GetCurrentNS()
-	Ω(err).ToNot(HaveOccurred())
+func setupDelContextV4(ctrl *gomock.Controller) Context {
+	ipt := mock_iptables.NewMockIptablesIface(ctrl)
 
-	macHost := [6]byte{0xCB, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
-	macCont := [6]byte{0xCC, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
-
-	c.Ns.(*mock_nswrapper.MockNS).EXPECT().WithNetNSPath(c.NsPath, gomock.Any()).Do(func(_nsPath string, f func(_ns.NetNS) error) {
-		f(nsParent)
-	}).Return(nil)
-
-	c.Veth.(*mock_veth.MockVeth).EXPECT().Setup(c.NetConf.IfName, c.Mtu, gomock.Any()).Return(
-		net.Interface{
-			Name:         "vethxxxx",
-			HardwareAddr: macHost[:],
-		},
-		net.Interface{
-			Name:         "v4if0",
-			HardwareAddr: macCont[:],
-		},
-		nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().AddrAdd(gomock.Any(), gomock.Any()).Return(nil)
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteAdd(gomock.Any()).Return(nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("vethxxxx").Return(
-		&netlink.Veth{
-			LinkAttrs: netlink.LinkAttrs{
-				Name:  "vethxxxx",
-				Index: 100,
-			},
-		}, nil)
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("v4if0").Return(
-		&netlink.Veth{
-			LinkAttrs: netlink.LinkAttrs{
-				Name:  "v4if0",
-				Index: 2,
-			},
-		}, nil)
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteDel(gomock.Any()).Do(func(arg1 interface{}) error {
-		r := arg1.(*netlink.Route)
-		*actualRouteDel = append(*actualRouteDel, r.Dst.String())
-		return nil
-	}).Return(nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().RouteAdd(gomock.Any()).Do(func(arg1 interface{}) error {
-		r := arg1.(*netlink.Route)
-		// container route adding
-		*actualRouteAdd = append(*actualRouteAdd, r.String())
-		return nil
-	}).Return(nil).Times(2)
-
-	c.Ipam.(*mock_ipamwrapper.MockIpam).EXPECT().ConfigureIface("v4if0", gomock.Any()).Return(nil)
-	c.Procsys.(*mock_procsyswrapper.MockProcSys).EXPECT().Get("net/ipv4/ip_forward").Return("0", nil)
-	c.Procsys.(*mock_procsyswrapper.MockProcSys).EXPECT().Set("net/ipv4/ip_forward", "1").Return(nil)
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().HasRandomFully().Return(true)
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().ListChains("nat").Return([]string{"POSTROUTING", c.Chain}, nil)
-
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().AppendUnique("nat", gomock.Any(), gomock.Any()).Do(func(arg1, arg2 interface{}, arg3 ...interface{}) {
-		actualResult := arg1.(string) + " " + arg2.(string)
-		for _, arg := range arg3 {
-			actualResult += " " + arg.(string)
-		}
-		*actualIptablesRules = append(*actualIptablesRules, actualResult)
-	}).Return(nil).Times(3)
-}
-
-func setupDelExpectV4(c share.Context, actualLinkDel, actualIptablesDel *[]string) {
-	nsParent, err := _ns.GetCurrentNS()
-	Ω(err).ToNot(HaveOccurred())
-
-	//macHost := [6]byte{0xCB, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
-	//macCont := [6]byte{0xCC, 0xB8, 0x33, 0x4C, 0x88, 0x4F}
-
-	c.Ns.(*mock_nswrapper.MockNS).EXPECT().WithNetNSPath(c.NsPath, gomock.Any()).Do(func(_nsPath string, f func(_ns.NetNS) error) {
-		f(nsParent)
-	}).Return(nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkByName("v4if0").Return(
-		&netlink.Veth{
-			LinkAttrs: netlink.LinkAttrs{
-				Name:  "v4if0",
-				Index: 2,
-			},
-		}, nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().AddrList(gomock.Any(), netlink.FAMILY_V4).Return(
-		[]netlink.Addr{
-			{
-				IPNet: &net.IPNet{
-					IP:   net.ParseIP("169.254.172.100"),
-					Mask: net.CIDRMask(22, 32),
-				},
-				LinkIndex: 2,
-			},
-		}, nil)
-
-	c.Link.(*mock_netlinkwrapper.MockNetLink).EXPECT().LinkDel(gomock.Any()).Do(
-		func(arg1 interface{}) error {
-			link := arg1.(netlink.Link)
-			*actualLinkDel = append(*actualLinkDel, "link del - name: "+link.Attrs().Name)
-			return nil
-		}).Return(nil)
-
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().Delete("nat", "POSTROUTING", gomock.Any()).Do(
-		func(arg1 interface{}, arg2 interface{}, arg3 ...interface{}) {
-			actualResult := arg1.(string) + " " + arg2.(string)
-			for _, arg := range arg3 {
-				actualResult += " " + arg.(string)
-			}
-			*actualIptablesDel = append(*actualIptablesDel, actualResult)
-		}).Return(nil).AnyTimes()
-
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().ClearChain("nat", "CNI-E4").Do(
-		func(arg1 interface{}, arg2 interface{}) {
-			actualResult := arg1.(string) + " " + arg2.(string)
-			*actualIptablesDel = append(*actualIptablesDel, "clear chain "+actualResult)
-		}).Return(nil).AnyTimes()
-
-	c.Iptv4.(*mock_networkutils.MockIptablesIface).EXPECT().DeleteChain("nat", "CNI-E4").Do(
-		func(arg1 interface{}, arg2 interface{}) {
-			actualResult := arg1.(string) + " " + arg2.(string)
-			*actualIptablesDel = append(*actualIptablesDel, "del chain "+actualResult)
-		}).Return(nil).AnyTimes()
-}
-func setupDelContextV4(ctrl *gomock.Controller, ipt *mock_networkutils.MockIptablesIface) share.Context {
-	return share.Context{
+	return Context{
 		Procsys: mock_procsyswrapper.NewMockProcSys(ctrl),
 		Ns:      mock_nswrapper.NewMockNS(ctrl),
 		NsPath:  "/var/run/netns/cni-xxxx",
 		Ipam:    mock_ipamwrapper.NewMockIpam(ctrl),
 		Link:    mock_netlinkwrapper.NewMockNetLink(ctrl),
 		Veth:    mock_veth.NewMockVeth(ctrl),
-		NetConf: &share.NetConf{
+		NetConf: &NetConf{
 			NetConf: types.NetConf{
 				CNIVersion: "0.4.0",
 			},
 			NodeIP:         net.ParseIP("192.168.0.23"),
-			IfName:         "v4if0",
+			IfName:         EgressIPv4InterfaceName,
 			MTU:            "9001",
 			PluginLogFile:  "plugin.log",
 			PluginLogLevel: "DEBUG",

@@ -14,11 +14,11 @@
 package snat
 
 import (
+	"net"
+
 	"github.com/coreos/go-iptables/iptables"
 
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/networkutils"
-
-	"net"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
 )
 
 func iptRules(target, src net.IP, multicastRange, chain, comment string, useRandomFully, useHashRandom bool) [][]string {
@@ -48,7 +48,7 @@ func iptRules(target, src net.IP, multicastRange, chain, comment string, useRand
 }
 
 // Add NAT entries to iptables for POD egress IPv6/IPv4 traffic
-func Add(ipt networkutils.IptablesIface, nodeIP, src net.IP, multicastRange, chain, comment, rndSNAT string) error {
+func Add(ipt iptableswrapper.IptablesIface, nodeIP, src net.IP, multicastRange, chain, comment, rndSNAT string) error {
 	//Defaults to `random-fully` unless a different option is explicitly set via
 	//`AWS_VPC_K8S_CNI_RANDOMIZESNAT`. If the underlying iptables version doesn't support
 	//'random-fully`, we will fall back to `random`.
@@ -91,7 +91,7 @@ func Add(ipt networkutils.IptablesIface, nodeIP, src net.IP, multicastRange, cha
 }
 
 // Del removes rules added by snat
-func Del(ipt networkutils.IptablesIface, src net.IP, chain, comment string) error {
+func Del(ipt iptableswrapper.IptablesIface, src net.IP, chain, comment string) error {
 	err := ipt.Delete("nat", "POSTROUTING", "-s", src.String(), "-j", chain, "-m", "comment", "--comment", comment)
 	if err != nil && !isNotExist(err) {
 		return err
