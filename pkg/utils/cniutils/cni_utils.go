@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/utils/imds"
 )
 
 const (
@@ -71,6 +72,22 @@ func WaitForAddressesToBeStable(netLink netlinkwrapper.NetLink, ifName string, t
 		}
 
 		time.Sleep(waitInterval)
+	}
+}
+
+// GetNodeMetadata calling node local imds metadata service using provided key
+// return either a non-empty value or an error
+func GetNodeMetadata(key string) (string, error) {
+	var value string
+	var err error
+	for {
+		value, err = imds.GetMetaData(key)
+		if err != nil {
+			return "", err
+		}
+		if value != "" {
+			return value, nil
+		}
 	}
 }
 
