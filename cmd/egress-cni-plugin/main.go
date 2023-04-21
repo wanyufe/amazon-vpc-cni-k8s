@@ -67,6 +67,7 @@ func cmdAdd(args *skel.CmdArgs) (err error) {
 }
 
 func _cmdAdd(args *skel.CmdArgs, c *EgressContext) (err error) {
+
 	c.NetConf, c.Log, err = LoadConf(args.StdinData)
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %v", err)
@@ -97,41 +98,27 @@ func _cmdAdd(args *skel.CmdArgs, c *EgressContext) (err error) {
 		return types.PrintResult(c.Result, c.NetConf.CNIVersion)
 	}
 
-	if c.IpTablesIface == nil {
-		if c.IpTablesIface, err = c.IptCreator(iptables.ProtocolIPv4); err != nil {
-			c.Log.Error("command iptables not found")
-			return err
-		}
-	}
-
-	c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E4-")
-	c.Comment = utils.FormatComment(c.NetConf.Name, args.ContainerID)
-
 	// Invoke ipam del if err to avoid ip leak
 	defer func() {
 		if err != nil {
 			c.Ipam.ExecDel(c.NetConf.IPAM.Type, args.StdinData)
 		}
 	}()
+	err = c.hostLocalIpamAdd(args.StdinData)
 
-	var ipamResultI types.Result
-	if ipamResultI, err = c.Ipam.ExecAdd(c.NetConf.IPAM.Type, args.StdinData); err != nil {
-		return fmt.Errorf("running IPAM plugin failed: %v", err)
+	c.Comment = utils.FormatComment(c.NetConf.Name, args.ContainerID)
+	if c.NetConf.NodeIP.To4() == nil { // NodeIP is not IPv4 address, pod IPv6 egress for eks IPv4 cluster
+		if c.NetConf.NodeIP == nil || !c.NetConf.NodeIP.IsGlobalUnicast() {
+			return fmt.Errorf("global unicast IPv6 not found in host primary interface which is mandatory to support IPv6 egress")
+		}
+		c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E6-")
+		c.NetConf.IfName = EgressIPv6InterfaceName
+		err = c.CmdAddEgressV6()
+	} else { // NodeIP is IPv4 address, pod IPv4 egress for eks IPv6 cluster
+		c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E4-")
+		c.NetConf.IfName = EgressIPv4InterfaceName
+		err = c.CmdAddEgressV4()
 	}
-
-	if c.TmpResult, err = current.NewResultFromResult(ipamResultI); err != nil {
-		return err
-	}
-
-	if len(c.TmpResult.IPs) == 0 {
-		err = fmt.Errorf("IPAM plugin returned zero IPs")
-		return err
-	}
-
-	// IPv4 egress
-	c.NetConf.IfName = EgressIPv4InterfaceName
-	// explicitly set err var so that above defer function can call ipam.ExecDel
-	err = c.CmdAddEgressV4()
 	return err
 }
 
@@ -163,21 +150,22 @@ func _cmdDel(args *skel.CmdArgs, c *EgressContext) (err error) {
 	}
 	c.Log.Debugf("Received Del Request: nsPath: %s conf=%v", c.NsPath, c.NetConf)
 
-	if c.IpTablesIface == nil {
-		if c.IpTablesIface, err = c.IptCreator(iptables.ProtocolIPv4); err != nil {
-			c.Log.Error("command iptables not found")
-		}
-	}
-
 	if err = c.Ipam.ExecDel(c.NetConf.IPAM.Type, args.StdinData); err != nil {
 		c.Log.Debugf("running IPAM plugin failed: %v", err)
 		return fmt.Errorf("running IPAM plugin failed: %v", err)
 	}
 
-	c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E4-")
 	c.Comment = utils.FormatComment(c.NetConf.Name, args.ContainerID)
-
-	// IPv4 egress
-	c.NetConf.IfName = EgressIPv4InterfaceName
-	return c.CmdDelEgressV4()
+	if c.NetConf.NodeIP.To4() == nil { // NodeIP is not IPv4 address
+		c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E6-")
+		// IPv6 egress
+		c.NetConf.IfName = EgressIPv6InterfaceName
+		err = c.CmdDelEgressV6()
+	} else {
+		c.Chain = utils.MustFormatChainNameWithPrefix(c.NetConf.Name, args.ContainerID, "E4-")
+		// IPv4 egress
+		c.NetConf.IfName = EgressIPv4InterfaceName
+		err = c.CmdDelEgressV4()
+	}
+	return err
 }

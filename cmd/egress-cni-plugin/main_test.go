@@ -31,13 +31,17 @@ import (
 
 const (
 	chainV4 = "CNI-E4-5740307710ebfd5fb24f5"
+	chainV6 = "CNI-E6-e335b08ae90730d0a659a"
+
+	containerIDV4 = "containerId-123"
+	containerIDV6 = "containerId-789"
 )
 
 func TestCmdAddV4(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	args := &skel.CmdArgs{
-		ContainerID: "containerId-123",
+		ContainerID: containerIDV4,
 		IfName:      "eth0",
 		StdinData: []byte(`{
 				"cniVersion":"0.4.0",
@@ -58,7 +62,7 @@ func TestCmdAddV4(t *testing.T) {
 							{"name":"eth0","sandbox":"/var/run/netns/cni-266298c1-b141-9c7f-f26b-97ff084f3fcc"},
 							{"name":"dummy36e5b0ee702","mac":"0","sandbox":"0"}],
 					"ips":
-						[{"version":"4","interface":1,"address":"192.168.13.226/32"}],
+						[{"version":"6","interface":1,"address":"2600:1f16:828:c404:af46:9f44:d2ea:4569/128"}],
 					"dns":{}
 					},
 				"type":"aws-cni",
@@ -71,7 +75,7 @@ func TestCmdAddV4(t *testing.T) {
 		Ns:            mock_nswrapper.NewMockNS(ctrl),
 		NsPath:        "/var/run/netns/cni-xxxx",
 		ArgsIfName:    args.IfName,
-		IpTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
+		IPTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
 		Ipam:          mock_ipamwrapper.NewMockHostIpam(ctrl),
 		Link:          mock_netlinkwrapper.NewMockNetLink(ctrl),
 		Veth:          mock_veth.NewMockVeth(ctrl),
@@ -86,9 +90,9 @@ func TestCmdAddV4(t *testing.T) {
 	assert.Nil(t, err)
 
 	expectIptablesRules := []string{
-		fmt.Sprintf("nat %s -d 224.0.0.0/4 -j ACCEPT -m comment --comment name: \"aws-cni\" id: \"containerId-123\"", chainV4),
-		fmt.Sprintf("nat %s -j SNAT --to-source 192.168.1.123 -m comment --comment name: \"aws-cni\" id: \"containerId-123\" --random-fully", chainV4),
-		fmt.Sprintf("nat POSTROUTING -s 169.254.172.10 -j %s -m comment --comment name: \"aws-cni\" id: \"containerId-123\"", chainV4)}
+		fmt.Sprintf("nat %s -d 224.0.0.0/4 -j ACCEPT -m comment --comment name: \"aws-cni\" id: \"%s\"", chainV4, containerIDV4),
+		fmt.Sprintf("nat %s -j SNAT --to-source 192.168.1.123 -m comment --comment name: \"aws-cni\" id: \"%s\" --random-fully", chainV4, containerIDV4),
+		fmt.Sprintf("nat POSTROUTING -s 169.254.172.10 -j %s -m comment --comment name: \"aws-cni\" id: \"%s\"", chainV4, containerIDV4)}
 	assert.EqualValues(t, expectIptablesRules, actualIptablesRules)
 
 	expectRouteDel := []string{"route del: {Ifindex: 2 Dst: 169.254.172.0/22 Src: <nil> Gw: <nil> Flags: [] Table: 0}"}
@@ -109,7 +113,7 @@ func TestCmdDelV4(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	args := &skel.CmdArgs{
-		ContainerID: "containerId-123",
+		ContainerID: containerIDV4,
 		IfName:      "eth0",
 		StdinData: []byte(`{
 				"cniVersion":"0.4.0",
@@ -142,7 +146,7 @@ func TestCmdDelV4(t *testing.T) {
 		Ns:            mock_nswrapper.NewMockNS(ctrl),
 		NsPath:        "/var/run/netns/cni-xxxx",
 		ArgsIfName:    args.IfName,
-		IpTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
+		IPTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
 		Ipam:          mock_ipamwrapper.NewMockHostIpam(ctrl),
 		Link:          mock_netlinkwrapper.NewMockNetLink(ctrl),
 		Veth:          mock_veth.NewMockVeth(ctrl),
@@ -163,5 +167,135 @@ func TestCmdDelV4(t *testing.T) {
 		fmt.Sprintf("nat POSTROUTING -s 169.254.172.10 -j %s -m comment --comment name: \"aws-cni\" id: \"containerId-123\"", chainV4),
 		fmt.Sprintf("clear chain nat %s", chainV4),
 		fmt.Sprintf("del chain nat %s", chainV4)}
+	assert.EqualValues(t, expectIptablesDel, actualIptablesDel)
+}
+
+func TestCmdAddV6(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	args := &skel.CmdArgs{
+		ContainerID: containerIDV6,
+		IfName:      "eth0",
+		StdinData: []byte(`{
+				"cniVersion":"0.4.0",
+				"mtu":"9001",
+				"name":"aws-cni",
+				"enabled":"true",
+				"nodeIP": "2600::",
+				"ipam": {"type":"host-local","ranges":[[{"subnet": "fd00::/8"}]],"routes":[{"dst":"::/0"}],"dataDir":"/run/cni/v4pd/egress-v6-ipam"},
+				"pluginLogFile":"egress-plugin.log",
+				"pluginLogLevel":"DEBUG",
+				"podSGEnforcingMode":"strict",
+				"prevResult":
+					{
+					"cniVersion":"0.4.0",
+					"interfaces":
+						[
+							{"name":"eni36e5b0ee702"},
+							{"name":"eth0","sandbox":"/var/run/netns/cni-266298c1-b141-9c7f-f26b-97ff084f3fcc"},
+							{"name":"dummy36e5b0ee702","mac":"0","sandbox":"0"}],
+					"ips":
+						[{"version":"4","interface":1,"address":"192.168.13.226/32"}],
+					"dns":{}
+					},
+				"type":"aws-cni",
+				"vethPrefix":"eni"
+		}`),
+	}
+
+	c := &EgressContext{
+		Procsys:       mock_procsyswrapper.NewMockProcSys(ctrl),
+		Ns:            mock_nswrapper.NewMockNS(ctrl),
+		NsPath:        "/var/run/netns/cni-xxxx",
+		ArgsIfName:    args.IfName,
+		IPTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
+		Ipam:          mock_ipamwrapper.NewMockHostIpam(ctrl),
+		Link:          mock_netlinkwrapper.NewMockNetLink(ctrl),
+		Veth:          mock_veth.NewMockVeth(ctrl),
+		Mtu:           9001,
+	}
+
+	var actualIptablesRules, actualRouteAdd, actualRouteReplace []string
+	err := SetupAddExpectV6(*c, chainV6, &actualIptablesRules, &actualRouteAdd, &actualRouteReplace)
+	assert.Nil(t, err)
+
+	err = _cmdAdd(args, c)
+	assert.Nil(t, err)
+
+	expectIptablesRules := []string{
+		fmt.Sprintf("nat %s -d ff00::/8 -j ACCEPT -m comment --comment name: \"aws-cni\" id: \"%s\"", chainV6, containerIDV6),
+		fmt.Sprintf("nat %s -j SNAT --to-source 2600:: -m comment --comment name: \"aws-cni\" id: \"%s\" --random-fully", chainV6, containerIDV6),
+		fmt.Sprintf("nat POSTROUTING -s fd00::10 -j %s -m comment --comment name: \"aws-cni\" id: \"%s\"", chainV6, containerIDV6)}
+	assert.EqualValues(t, expectIptablesRules, actualIptablesRules)
+
+	expectRouteAdd := []string{"{Ifindex: 100 Dst: fd00::10/128 Src: <nil> Gw: <nil> Flags: [] Table: 0}"}
+	assert.EqualValues(t, expectRouteAdd, actualRouteAdd)
+
+	expectRouteReplace := []string{"{Ifindex: 2 Dst: ::/0 Src: <nil> Gw: fe80::10 Flags: [] Table: 0}"}
+	assert.EqualValues(t, expectRouteReplace, actualRouteReplace)
+
+	// the unit test write some output string not ends with '\n' and this cause go runner unable to interpret that a test was run.
+	// Adding a newline, keeps a clean output
+	fmt.Println()
+}
+
+func TestCmdDelV6(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	args := &skel.CmdArgs{
+		ContainerID: containerIDV6,
+		IfName:      "eth0",
+		StdinData: []byte(`{
+				"cniVersion":"0.4.0",
+				"mtu":"9001",
+				"name":"aws-cni",
+				"enabled":"true",
+				"nodeIP": "2600::",
+				"ipam": {"type":"host-local","ranges":[[{"subnet": "fd00::/8"}]],"routes":[{"dst":"::/0"}],"dataDir":"/run/cni/v4pd/egress-v6-ipam"},
+				"pluginLogFile":"egress-plugin.log",
+				"pluginLogLevel":"DEBUG",
+				"podSGEnforcingMode":"strict",
+				"prevResult":
+					{
+					"cniVersion":"0.4.0",
+					"interfaces":
+						[
+							{"name":"eni36e5b0ee702"},
+							{"name":"eth0","sandbox":"/var/run/netns/cni-266298c1-b141-9c7f-f26b-97ff084f3fcc"},
+							{"name":"dummy36e5b0ee702","mac":"0","sandbox":"0"}],
+					"ips":
+						[{"version":"4","interface":1,"address":"192.168.13.226/32"}],
+					"dns":{}
+					},
+				"type":"aws-cni",
+				"vethPrefix":"eni"
+		}`),
+	}
+	c := &EgressContext{
+		Procsys:       mock_procsyswrapper.NewMockProcSys(ctrl),
+		Ns:            mock_nswrapper.NewMockNS(ctrl),
+		NsPath:        "/var/run/netns/cni-xxxx",
+		ArgsIfName:    args.IfName,
+		IPTablesIface: mock_iptables.NewMockIPTablesIface(ctrl),
+		Ipam:          mock_ipamwrapper.NewMockHostIpam(ctrl),
+		Link:          mock_netlinkwrapper.NewMockNetLink(ctrl),
+		Veth:          mock_veth.NewMockVeth(ctrl),
+		Mtu:           9001,
+	}
+
+	var actualLinkDel, actualIptablesDel []string
+	err := SetupDelExpectV6(*c, chainV6, &actualLinkDel, &actualIptablesDel)
+	assert.Nil(t, err)
+
+	err = _cmdDel(args, c)
+	assert.Nil(t, err)
+
+	expectLinkDel := []string{"link del - name: v6if0"}
+	assert.EqualValues(t, expectLinkDel, actualLinkDel)
+
+	expectIptablesDel := []string{
+		fmt.Sprintf("nat POSTROUTING -s fd00::10 -j %s -m comment --comment name: \"aws-cni\" id: \"%s\"", chainV6, containerIDV6),
+		fmt.Sprintf("clear chain nat %s", chainV6),
+		fmt.Sprintf("del chain nat %s", chainV6)}
 	assert.EqualValues(t, expectIptablesDel, actualIptablesDel)
 }
