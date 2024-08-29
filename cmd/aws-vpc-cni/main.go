@@ -206,23 +206,23 @@ func waitForInit() error {
 	}
 }
 
-func getNodePrimaryV4Address() (string, error) {
+func getPrimaryIP(ipv4 bool) (string, error) {
 	var hostIP string
 	var err error
-	hostIP, err = cniutils.GetNodeMetadata("local-ipv4")
-	if err != nil {
-		log.WithError(err).Fatalf("aws-vpc-cni failed")
-		return "", err
-	}
-	return hostIP, nil
-}
+	var key string
 
-func getNodePrimaryV6Address() (string, error) {
-	var hostIP string
-	var err error
-	hostIP, err = cniutils.GetNodeMetadata("ipv6")
+	if ipv4 {
+		key = "local-ipv4"
+	} else {
+		key = "ipv6"
+	}
+	hostIP, err = cniutils.GetNodeMetadata(key)
 	if err != nil {
-		log.WithError(err).Fatalf("aws-vpc-cni failed")
+		if ipv4 {
+			log.WithError(err).Fatalf("failed to rtrieve local-ipv4 address in imds metadata")
+		} else {
+			log.WithError(err).Debugf("failed to retrieve ipv6 address in imds metadata")
+		}
 		return "", err
 	}
 	return hostIP, nil
@@ -233,8 +233,8 @@ func isValidJSON(inFile string) error {
 	return json.Unmarshal([]byte(inFile), &result)
 }
 
-func generateJSON(jsonFile string, outFile string) error {
-	byteValue, err := ioutil.ReadFile(jsonFile)
+func generateJSON(jsonFile string, outFile string, getPrimaryIP func(ipv4 bool) (string, error)) error {
+	byteValue, err := os.ReadFile(jsonFile)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,8 @@ func generateJSON(jsonFile string, outFile string) error {
 		egressIPDst = egressIPv4Dst
 		egressEnabled = "true"
 		egressPluginLogFile = getEnv(envEgressV4PluginLogFile, defaultEgressV4PluginLogFile)
-		nodeIP, err = getNodePrimaryV4Address()
+		nodeIP, err = getPrimaryIP(true) // getNodePrimaryV4Address()
+		// Node has a IPv4 address even in IPv6 cluster
 		if err != nil {
 			log.Errorf("Failed to get Node IP, error: %v", err)
 			return err
@@ -266,7 +267,8 @@ func generateJSON(jsonFile string, outFile string) error {
 		egressEnabled = getEnv(envEnV6Egress, defaultEnableV6Egress)
 		egressPluginLogFile = getEnv(envEgressPluginLogFile, defaultEgressPluginLogFile)
 		if egressEnabled == "true" {
-			nodeIP, err = getNodePrimaryV6Address()
+			nodeIP, err = getPrimaryIP(false) // getNodePrimaryV6Address()
+			// Node may not have a IPv6 address in IPv4 cluster if IPv6 egress supporting is not enabled
 			if err != nil {
 				log.Errorf("To support IPv6 egress, node primary ENI must have a global IPv6 address, error: %v", err)
 				// Global unicast IPv6 nodeIP is mandatory to support IPv6 egress traffic in EKS IPv4 cluster
@@ -442,7 +444,7 @@ func _main() int {
 	//}
 
 	log.Infof("Copying config file... ")
-	err = generateJSON(defaultAWSconflistFile, tmpAWSconflistFile)
+	err = generateJSON(defaultAWSconflistFile, tmpAWSconflistFile, getPrimaryIP)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to generate 10-awsconflist")
 		return 1

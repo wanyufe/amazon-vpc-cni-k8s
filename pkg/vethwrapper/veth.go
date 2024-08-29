@@ -11,31 +11,26 @@
 // express or implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-// Package nswrapper is a wrapper interface for the containernetworking ns plugin
-package nswrapper
+// package vethwrapper is a wrapper method for the ip.SetupVeth method
+package vethwrapper
 
 import (
+	"net"
+
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 )
 
-// NS is the wrapper interface for the containernetworking ns plugin
-type NS interface {
-	WithNetNSPath(nspath string, toRun func(ns.NetNS) error) error
+type Veth interface {
+	Setup(contVethName string, mtu int, hostNS ns.NetNS) (net.Interface, net.Interface, error)
 }
 
-type nsType struct {
+type veth struct{}
+
+// NewSetupVeth return a new veth object
+func NewSetupVeth() Veth {
+	return &veth{}
 }
-
-// NewNS returns a new NS
-func NewNS() NS {
-	return &nsType{}
+func (v *veth) Setup(contVethName string, mtu int, hostNS ns.NetNS) (net.Interface, net.Interface, error) {
+	return ip.SetupVeth(contVethName, mtu, hostNS)
 }
-
-func (*nsType) WithNetNSPath(nspath string, toRun func(ns.NetNS) error) error {
-	return ns.WithNetNSPath(nspath, toRun)
-
-}
-
-//func (*nsType) Do(toRun func(host ns.NetNS) error) error {
-//	return ns.NetNS.Do(toRun)
-//}

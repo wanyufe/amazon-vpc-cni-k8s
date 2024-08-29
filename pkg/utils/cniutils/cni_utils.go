@@ -3,16 +3,21 @@ package cniutils
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"syscall"
 	"time"
 
-	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
-	"github.com/aws/amazon-vpc-cni-k8s/utils/imds"
 	"github.com/containernetworking/cni/pkg/types/current"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/procsyswrapper"
+	"github.com/aws/amazon-vpc-cni-k8s/utils/imds"
+)
+
+const (
+	ipv4ForwardKey = "net/ipv4/ip_forward"
+	ipv6ForwardKey = "net/ipv6/conf/all/forwarding"
 )
 
 func FindInterfaceByName(ifaceList []*current.Interface, ifaceName string) (ifaceIndex int, iface *current.Interface, found bool) {
@@ -72,36 +77,6 @@ func WaitForAddressesToBeStable(netLink netlinkwrapper.NetLink, ifName string, t
 	}
 }
 
-// GetIPsByInterfaceName returns IPs in a provided interface within provided network namespace, and filtered by provided func
-// if provided ns is nil, return result in root ns or caller's current ns context
-func GetIPsByInterfaceName(netns ns.NetNS, ifName string, filter func(net.IP) bool) (containerIPv6 []net.IP, err error) {
-	var worker = func(ifName string, filter func(net.IP) bool) error {
-		containerIf, err := net.InterfaceByName(ifName)
-		if err != nil {
-			return err
-		}
-		addrs, err := containerIf.Addrs()
-		if err != nil {
-			return err
-		}
-		for _, addr := range addrs {
-			ip := addr.(*net.IPNet).IP
-			if filter(ip) {
-				containerIPv6 = append(containerIPv6, ip)
-			}
-		}
-		return nil
-	}
-	if netns != nil {
-		err = netns.Do(func(hostNS ns.NetNS) error {
-			return worker(ifName, filter)
-		})
-	} else {
-		err = worker(ifName, filter)
-	}
-	return containerIPv6, err
-}
-
 // GetHostPrimaryInterfaceName returns host primary interface name, for example, `eth0`
 func GetHostPrimaryInterfaceName() (string, error) {
 	var hostPrimaryIfName string
@@ -129,9 +104,11 @@ func GetHostPrimaryInterfaceName() (string, error) {
 // SetIPv6AcceptRa will set {value} to /proc/sys/net/ipv6/conf/{ifName}/accept_ra
 // using provided ifName and value
 // Possible values are:
-// 	"0" Do not accept Router Advertisements.
+//
+//	"0" Do not accept Router Advertisements.
 //	"1" Accept Router Advertisements if forwarding is disabled.
 //	"2" Overrule forwarding behaviour. Accept Router Advertisements even if forwarding is enabled.
+//
 // NOTE: system default value is "1"
 func SetIPv6AcceptRa(ifName string, value string) error {
 	var entry = "/proc/sys/net/ipv6/conf/" + ifName + "/accept_ra"
@@ -158,4 +135,41 @@ func GetNodeMetadata(key string) (string, error) {
 			return value, nil
 		}
 	}
+}
+
+// EnableIpForwarding sets forwarding to 1 for both IPv4 and IPv6 if applicable.
+// This func is to have a unit testable version of ip.EnableForward in ipforward_linux.go file
+// link: https://github.com/containernetworking/plugins/blob/main/pkg/ip/ipforward_linux.go#L34
+func EnableIpForwarding(procSys procsyswrapper.ProcSys, ips []*current.IPConfig) error {
+	v4 := false
+	v6 := false
+
+	for _, ip := range ips {
+		if ip.Version == "4" && !v4 {
+			valueV4, err := procSys.Get(ipv4ForwardKey)
+			if err != nil {
+				return err
+			}
+			if valueV4 != "1" {
+				err = procSys.Set(ipv4ForwardKey, "1")
+				if err != nil {
+					return err
+				}
+			}
+			v4 = true
+		} else if ip.Version == "6" && !v6 {
+			valueV6, err := procSys.Get(ipv6ForwardKey)
+			if err != nil {
+				return err
+			}
+			if valueV6 != "1" {
+				err = procSys.Set(ipv6ForwardKey, "1")
+				if err != nil {
+					return err
+				}
+			}
+			v6 = true
+		}
+	}
+	return nil
 }

@@ -27,7 +27,7 @@ import (
 
 const (
 	publicIpv6UrlForTesting = "https://ipv6.icanhazip.com"
-	publicIpv4UrlForTesting = "https://ipv6.icanhazip.com"
+	publicIpv4UrlForTesting = "https://ip.icanhazip.com"
 )
 
 // Verifies connectivity to deployment behind different service types

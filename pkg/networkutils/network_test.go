@@ -32,6 +32,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
+	"github.com/aws/amazon-vpc-cni-k8s/pkg/iptableswrapper"
 	mocks_ip "github.com/aws/amazon-vpc-cni-k8s/pkg/ipwrapper/mocks"
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper/mock_netlink"
 	mock_netlinkwrapper "github.com/aws/amazon-vpc-cni-k8s/pkg/netlinkwrapper/mocks"
@@ -152,7 +153,7 @@ func TestSetupHostNetworkNodePortDisabledAndSNATDisabled(t *testing.T) {
 		mtu:                    testMTU,
 		netLink:                mockNetLink,
 		ns:                     mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -233,7 +234,7 @@ func TestSetupHostNetworkNodePortEnabledAndSNATDisabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -281,7 +282,7 @@ func TestSetupHostNetworkNodePortDisabledAndSNATEnabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -353,7 +354,7 @@ func TestSetupHostNetworkWithExcludeSNATCIDRs(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -405,7 +406,7 @@ func TestSetupHostNetworkCleansUpStaleSNATRules(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -473,7 +474,7 @@ func TestSetupHostNetworkWithDifferentVethPrefix(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -540,7 +541,7 @@ func TestSetupHostNetworkExternalNATCleanupConnmark(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -604,7 +605,7 @@ func TestSetupHostNetworkExcludedSNATCIDRsIdempotent(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -671,7 +672,7 @@ func TestUpdateHostIptablesRules(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -730,7 +731,7 @@ func TestSetupHostNetworkMultipleCIDRs(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -755,7 +756,7 @@ func TestSetupHostNetworkWithIPv6Enabled(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -818,7 +819,7 @@ func TestSetupHostNetworkIgnoringRpFilterUpdate(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -843,7 +844,7 @@ func TestSetupHostNetworkUpdateLocalRule(t *testing.T) {
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -871,7 +872,7 @@ func TestSetupHostNetworkDeleteOldConnmarkRuleForNonVpcOutboundTraffic(t *testin
 
 		netLink: mockNetLink,
 		ns:      mockNS,
-		newIptables: func(iptables.Protocol) (iptablesIface, error) {
+		newIptables: func(iptables.Protocol) (iptableswrapper.IptablesIface, error) {
 			return mockIptables, nil
 		},
 	}
@@ -1077,6 +1078,19 @@ func (ipt *mockIptables) Append(table, chain string, rulespec ...string) error {
 		ipt.dataplaneState[table] = map[string][][]string{}
 	}
 	ipt.dataplaneState[table][chain] = append(ipt.dataplaneState[table][chain], rulespec)
+	return nil
+}
+
+func (ipt *mockIptables) AppendUnique(table, chain string, rulespec ...string) error {
+	exists, err := ipt.Exists(table, chain, rulespec...)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return ipt.Append(table, chain, rulespec...)
+	}
+
 	return nil
 }
 
